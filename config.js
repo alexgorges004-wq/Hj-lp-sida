@@ -99,7 +99,44 @@ window.addEventListener("load", async () => {
   }
 
   renderStepEditor = function (steps) {
-    document.getElementById("stepEditor").innerHTML = (steps || []).map((s, i) => editorMarkup(s, i)).join("");
+    const stepEditor = document.getElementById("stepEditor");
+    stepEditor.innerHTML = (steps || []).map((s, i) => editorMarkup(s, i)).join("");
+
+    // Bind media remove buttons directly after each render. This is more reliable
+    // than depending only on delegated document click handling inside the modal.
+    stepEditor.querySelectorAll("[data-remove-image]").forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const editor = button.closest(".stepedit");
+        if (!editor) return;
+        editor.dataset.removeImage = "1";
+        const preview = button.closest(".current-shot");
+        if (preview) preview.style.display = "none";
+        const fileInput = editor.querySelector(".stepImageFile");
+        if (fileInput) fileInput.value = "";
+        const label = editor.querySelector(".selected-file-name");
+        if (label) label.textContent = "Screenshot tas bort när du sparar.";
+        toast("Screenshot markerad för borttagning – tryck Spara.");
+      };
+    });
+
+    stepEditor.querySelectorAll("[data-remove-video]").forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const editor = button.closest(".stepedit");
+        if (!editor) return;
+        editor.dataset.removeVideo = "1";
+        const preview = button.closest(".current-shot");
+        if (preview) preview.style.display = "none";
+        const fileInput = editor.querySelector(".stepVideoFile");
+        if (fileInput) fileInput.value = "";
+        const label = editor.querySelector(".selected-video-file-name");
+        if (label) label.textContent = "Skärminspelningen tas bort när du sparar.";
+        toast("Skärminspelning markerad för borttagning – tryck Spara.");
+      };
+    });
   };
 
   collectSteps = function () {
@@ -273,33 +310,6 @@ window.addEventListener("load", async () => {
       savePage.textContent = "Spara";
     }
   };
-
-  document.addEventListener("click", (event) => {
-    const removeImage = event.target.closest("[data-remove-image]");
-    if (removeImage) {
-      const editor = removeImage.closest(".stepedit");
-      if (!editor) return;
-      editor.dataset.removeImage = "1";
-      removeImage.closest(".current-shot")?.classList.add("hidden");
-      const fileInput = editor.querySelector(".stepImageFile");
-      if (fileInput) fileInput.value = "";
-      const label = editor.querySelector(".selected-file-name");
-      if (label) label.textContent = "Screenshot tas bort när du sparar.";
-      return;
-    }
-
-    const removeVideo = event.target.closest("[data-remove-video]");
-    if (removeVideo) {
-      const editor = removeVideo.closest(".stepedit");
-      if (!editor) return;
-      editor.dataset.removeVideo = "1";
-      removeVideo.closest(".current-shot")?.classList.add("hidden");
-      const fileInput = editor.querySelector(".stepVideoFile");
-      if (fileInput) fileInput.value = "";
-      const label = editor.querySelector(".selected-video-file-name");
-      if (label) label.textContent = "Skärminspelningen tas bort när du sparar.";
-    }
-  });
 
   document.addEventListener("change", (event) => {
     if (event.target.matches(".stepImageFile")) {
