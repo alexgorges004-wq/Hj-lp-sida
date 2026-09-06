@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Livestreamhjälp</title>
+<script src="https://cdn.jsdelivr.net/npm/appwrite@26.2.0"></script>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--text:#101828;--muted:#667085;--line:#e4e7ec;--primary:#202939;--soft:#eef2f6;--good:#15803d;--goodsoft:#ecfdf3;--danger:#b42318;--dangersoft:#fff1f0;--info:#175cd3;--infosoft:#eff8ff;--warn:#9a5b00;--warnsoft:#fff8e8;--shadow:0 12px 34px rgba(16,24,40,.07)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}.shell{max-width:1080px;margin:0 auto;padding:0 16px 60px}.topbar{position:sticky;top:0;z-index:50;background:rgba(246,247,249,.94);backdrop-filter:blur(14px);border-bottom:1px solid rgba(228,231,236,.9)}.topbarin{max-width:1080px;margin:0 auto;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px}.brand{display:flex;align-items:center;gap:11px;min-width:0}.logo{width:43px;height:43px;border-radius:13px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:21px}.brand strong{display:block;font-size:15px}.brand span{display:block;color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw}.actions{display:flex;gap:8px;align-items:center}.btn{border:1px solid var(--line);background:#fff;color:var(--text);padding:10px 13px;border-radius:12px;font-weight:750}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}.btn.small{padding:8px 10px;font-size:13px}.adminbar{max-width:1080px;margin:0 auto;padding:9px 16px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#9a3412;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}.setupbar{max-width:1080px;margin:10px auto 0;padding:12px 16px;background:#eff8ff;border:1px solid #b2ddff;border-radius:14px;color:#1849a9;font-size:13px}.hero{margin-top:24px;background:#fff;border:1px solid var(--line);border-radius:27px;padding:28px;box-shadow:var(--shadow)}.kicker{font-size:12px;font-weight:850;letter-spacing:.09em;text-transform:uppercase;color:#98a2b3}h1{font-size:clamp(36px,7vw,58px);line-height:1.02;letter-spacing:-.045em;margin:8px 0 12px}.hero p,.lead{color:var(--muted);font-size:16px;line-height:1.58;margin:0;max-width:760px}.sectionlabel{margin:28px 2px 12px;color:#98a2b3;font-size:12px;font-weight:850;letter-spacing:.09em;text-transform:uppercase}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card,.quickitem{position:relative;background:#fff;border:1px solid var(--line);box-shadow:0 5px 18px rgba(16,24,40,.04)}.card{border-radius:20px;padding:19px;text-align:left}.card .ico{width:42px;height:42px;border-radius:13px;background:var(--soft);display:grid;place-items:center;font-size:19px;margin-bottom:14px}.card h2{font-size:19px;margin:0 0 5px}.card p{font-size:14px;line-height:1.48;color:var(--muted);margin:0}.card .more{display:block;margin-top:14px;font-size:13px;font-weight:800;color:#475467}.editfab{position:absolute;top:12px;right:12px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 9px;font-size:13px;font-weight:800}.quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.quickitem{border-radius:16px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:750}.quickitem small{display:block;color:var(--muted);font-weight:500;margin-top:3px;line-height:1.35}.arr{font-size:22px;color:#98a2b3}.page{margin-top:24px}.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}.back{border:0;background:transparent;padding:0;color:var(--muted);font-weight:750;margin-bottom:16px}.pagetitle{font-size:clamp(34px,6vw,50px);line-height:1.04;letter-spacing:-.04em;margin:0 0 8px}.panel{background:#fff;border:1px solid var(--line);border-radius:19px;padding:20px;box-shadow:0 5px 18px rgba(16,24,40,.04);margin-bottom:14px}.panel h2{margin:0 0 8px;font-size:21px}.panel p{margin:0;color:var(--muted);line-height:1.55}.steps{display:grid;gap:12px}.step{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;grid-template-columns:40px minmax(0,1fr);gap:13px}.num{width:36px;height:36px;border-radius:11px;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:850}.step h3{margin:1px 0 5px;font-size:17px}.step p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}.callout{border:1px solid;border-radius:16px;padding:14px 15px;margin:14px 0}.callout strong{display:block;margin-bottom:4px}.callout p{font-size:14px;line-height:1.5;margin:0}.callout.info{background:var(--infosoft);border-color:#b2ddff;color:#1849a9}.callout.warn{background:var(--warnsoft);border-color:#fedf89;color:#8a4b0f}.callout.danger{background:var(--dangersoft);border-color:#fecdca;color:#912018}.callout.good{background:var(--goodsoft);border-color:#abefc6;color:#05603a}.modalback{position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.62);display:grid;place-items:center;padding:16px}.modal{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.28);border:1px solid var(--line)}.modalhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}.modalhead h2{margin:0;font-size:20px}.close{border:1px solid var(--line);background:#fff;width:36px;height:36px;border-radius:11px;font-size:20px}.modalbody{padding:20px}.field{margin-bottom:14px}.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}.field input,.field textarea,.field select{width:100%;border:1px solid #d0d5dd;border-radius:12px;padding:11px 12px;outline:none;background:#fff;color:var(--text)}.field textarea{min-height:95px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45}.modalfooter{display:flex;justify-content:flex-end;gap:9px;padding:16px 20px;border-top:1px solid var(--line)}.stepedit{border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:10px;background:#fafafa}.stepeditbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}.adminpanel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.admincard{background:#fff;border:1px solid var(--line);border-radius:17px;padding:16px}.admincard strong{display:block;margin-bottom:5px}.admincard span{color:var(--muted);font-size:13px;line-height:1.4}.statuspill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800;background:#f2f4f7;color:#475467}.dot{width:8px;height:8px;border-radius:50%;background:#98a2b3}.dot.good{background:#22c55e}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;background:#111827;color:#fff;padding:11px 14px;border-radius:12px;font-size:13px;font-weight:700}.footer{text-align:center;color:#98a2b3;font-size:12px;margin:34px 0 5px}
+@media(max-width:720px){.grid,.quick,.row,.adminpanel{grid-template-columns:1fr}.hero{padding:22px}.pagehead{flex-direction:column}.actions .label{display:none}}
+</style>
+</head>
+<body>
+<noscript><div style="padding:20px;background:#fff3cd">Den här versionen kräver JavaScript.</div></noscript>
+
+<div class="topbar">
+  <div class="topbarin">
+    <div class="brand"><div class="logo">✝</div><div><strong id="brandName">Jungfru Maria Kyrkan</strong><span id="brandSub">Livestreamhjälp</span></div></div>
+    <div class="actions">
+      <button class="btn small hidden" id="adminDashboardBtn">Admin</button>
+      <button class="btn small" id="loginBtn"><span class="label">Admin </span>Login</button>
+      <button class="btn small hidden" id="logoutBtn">Logga ut</button>
+    </div>
+  </div>
+</div>
+
+<div class="adminbar hidden" id="adminBar">
+  <div><strong>Redigeringsläge</strong> · Ändringar sparas i Appwrite.</div>
+  <div class="statuspill"><span class="dot" id="saveDot"></span><span id="saveState">Ansluten</span></div>
+</div>
+
+<main class="shell">
+  <div class="setupbar hidden" id="setupBar"><strong>Appwrite är inte konfigurerat än.</strong> Sidan fungerar med standardinnehållet, men riktig login och synk aktiveras när <code>config.js</code> fylls i.</div>
+
+  <section id="homeView">
+    <div class="hero">
+      <div class="kicker">Operatörsguide</div>
+      <h1 id="heroTitle">Vad behöver du hjälp med?</h1>
+      <p id="heroText">Välj det du vill göra. Guiden visar det viktigaste steg för steg.</p>
+      <button class="btn small hidden" id="editSiteBtn" style="margin-top:16px">✎ Redigera sidhuvud</button>
+    </div>
+    <div class="sectionlabel">Vanligaste uppgifterna</div><div class="grid" id="mainCards"></div>
+    <div class="sectionlabel">Felsökning</div><div class="quick" id="troubleCards"></div>
+    <div class="sectionlabel">Övrigt</div><div class="quick" id="otherCards"></div>
+  </section>
+
+  <section id="pageView" class="page hidden">
+    <button class="back" id="backBtn">← Till startsidan</button>
+    <div class="pagehead"><div><div class="kicker" id="pageKicker"></div><h1 class="pagetitle" id="pageTitle"></h1><p class="lead" id="pageIntro"></p></div><button class="btn hidden" id="editPageBtn">✎ Redigera sidan</button></div>
+    <div id="pageBody"></div>
+  </section>
+
+  <section id="adminView" class="page hidden">
+    <button class="back" id="adminBackBtn">← Till startsidan</button>
+    <div class="pagehead"><div><div class="kicker">Administration</div><h1 class="pagetitle">Hantera sidan</h1><p class="lead">Den här versionen använder Appwrite för inloggning och central lagring.</p></div></div>
+    <div class="adminpanel">
+      <div class="admincard"><strong>Inloggning</strong><span id="adminModeText">Appwrite Auth</span></div>
+      <div class="admincard"><strong>Lagring</strong><span id="storageModeText">Appwrite TablesDB</span></div>
+      <div class="admincard"><strong>Status</strong><span id="backendModeText">Kontrollerar…</span></div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Konfiguration</h2>
+      <p>Appwrite-endpoint, Project ID och databas-ID:n ligger i <code>config.js</code>. De är klientkonfiguration och är inte hemliga API-nycklar.</p>
+    </div>
+    <div class="panel">
+      <h2>Inloggad som</h2>
+      <p id="adminUserText">–</p>
+    </div>
+  </section>
+
+  <div class="footer">Livestreamhjälp · Appwrite edition</div>
+</main>
+
+<div class="modalback hidden" id="loginModal">
+  <div class="modal">
+    <div class="modalhead"><h2>Admin login</h2><button class="close" data-close="loginModal">×</button></div>
+    <div class="modalbody">
+      <div id="realLogin">
+        <div class="field"><label>E-post</label><input id="loginEmail" type="email" autocomplete="username"></div>
+        <div class="field"><label>Lösenord</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+        <p class="hint">Det finns ingen registreringsknapp på sidan. Skapa admin-kontot i Appwrite Console.</p>
+      </div>
+      <div id="demoLogin" class="hidden">
+        <div class="callout info"><strong>Demo-läge</strong><p>Appwrite är inte anslutet ännu. Du kan ändå testa redigering lokalt.</p></div>
+        <div class="field"><label>Demo-lösenord</label><input id="demoPassword" type="password"></div>
+        <p class="hint">Demo: <b>churchdemo</b>. Använd inte detta som riktig säkerhet.</p>
+      </div>
+    </div>
+    <div class="modalfooter"><button class="btn" data-close="loginModal">Avbryt</button><button class="btn primary" id="submitLoginBtn">Logga in</button></div>
+  </div>
+</div>
+
+<div class="modalback hidden" id="editSiteModal">
+  <div class="modal">
+    <div class="modalhead"><h2>Redigera sidhuvud</h2><button class="close" data-close="editSiteModal">×</button></div>
+    <div class="modalbody">
+      <div class="field"><label>Kyrkans namn</label><input id="editBrandName"></div>
+      <div class="field"><label>Underrubrik</label><input id="editBrandSub"></div>
+      <div class="field"><label>Huvudrubrik</label><input id="editHeroTitle"></div>
+      <div class="field"><label>Introduktion</label><textarea id="editHeroText"></textarea></div>
+    </div>
+    <div class="modalfooter"><button class="btn" data-close="editSiteModal">Avbryt</button><button class="btn primary" id="saveSiteBtn">Spara</button></div>
+  </div>
+</div>
+
+<div class="modalback hidden" id="editPageModal">
+  <div class="modal">
+    <div class="modalhead"><h2>Redigera sida</h2><button class="close" data-close="editPageModal">×</button></div>
+    <div class="modalbody">
+      <div class="row"><div class="field"><label>Ikon</label><input id="editPageIcon"></div><div class="field"><label>Kategori</label><input id="editPageKicker"></div></div>
+      <div class="field"><label>Titel</label><input id="editPageTitle"></div>
+      <div class="field"><label>Kort text på startsidan</label><textarea id="editPageSummary"></textarea></div>
+      <div class="field"><label>Intro på infosidan</label><textarea id="editPageIntro"></textarea></div>
+      <div class="field"><label>Steg / instruktioner</label><div id="stepEditor"></div><button class="btn small" id="addStepBtn">+ Lägg till steg</button></div>
+      <div class="field"><label>Viktig notis</label><textarea id="editPageNote"></textarea></div>
+      <div class="field"><label>Notistyp</label><select id="editPageNoteType"><option value="info">Info</option><option value="good">Grön</option><option value="warn">Varning</option><option value="danger">Röd varning</option></select></div>
+    </div>
+    <div class="modalfooter"><button class="btn" data-close="editPageModal">Avbryt</button><button class="btn primary" id="savePageBtn">Spara</button></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
