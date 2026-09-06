@@ -36,11 +36,21 @@ window.addEventListener("load", async () => {
   }
 
   updateAdminView = function () {
-    if (document.getElementById("adminModeText")) document.getElementById("adminModeText").textContent = "Supabase Auth";
-    if (document.getElementById("storageModeText")) document.getElementById("storageModeText").textContent = "Supabase database";
-    if (document.getElementById("backendModeText")) document.getElementById("backendModeText").textContent = "Ansluten";
-    if (document.getElementById("realLogin")) document.getElementById("realLogin").classList.remove("hidden");
-    if (document.getElementById("demoLogin")) document.getElementById("demoLogin").classList.add("hidden");
+    const adminMode = document.getElementById("adminModeText");
+    const storageMode = document.getElementById("storageModeText");
+    const backendMode = document.getElementById("backendModeText");
+    const connected = document.getElementById("loginConnected");
+    const demo = document.getElementById("loginDemo");
+    const urlInput = document.getElementById("supabaseUrl");
+    const keyInput = document.getElementById("supabaseKey");
+
+    if (adminMode) adminMode.textContent = "Supabase Auth";
+    if (storageMode) storageMode.textContent = "Supabase database";
+    if (backendMode) backendMode.textContent = "Ansluten";
+    if (connected) connected.classList.remove("hidden");
+    if (demo) demo.classList.add("hidden");
+    if (urlInput) urlInput.value = cfg.url;
+    if (keyInput) keyInput.value = cfg.key;
   };
 
   saveContent = async function () {
@@ -54,8 +64,10 @@ window.addEventListener("load", async () => {
       toast("Kunde inte spara online: " + error.message);
       return;
     }
-    if (document.getElementById("saveDot")) document.getElementById("saveDot").className = "dot good";
-    if (document.getElementById("saveState")) document.getElementById("saveState").textContent = "Sparat online";
+    const dot = document.getElementById("saveDot");
+    const state = document.getElementById("saveState");
+    if (dot) dot.className = "dot good";
+    if (state) state.textContent = "Sparat online";
     toast("Sparat online");
   };
 
