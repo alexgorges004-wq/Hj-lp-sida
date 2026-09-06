@@ -28,6 +28,7 @@ window.addEventListener("load", async () => {
     .adminbar{background:#171329!important;border-bottom-color:#3c3267!important;color:#d8ceff!important}.statuspill{background:#112236!important;color:#c9d5e6!important}.dot.good{background:#3bd17e!important}
     .toast{background:#f4f7fb!important;color:#101828!important;box-shadow:0 12px 35px rgba(0,0,0,.35)}
     .guide-shot-wrap{margin:16px 0 2px;max-width:820px}.guide-shot-link{display:block;position:relative;border:1px solid #314765;border-radius:14px;overflow:hidden;background:#050b14;text-decoration:none}.guide-shot{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#050b14}.zoom-hint{position:absolute;right:10px;bottom:10px;background:rgba(4,10,20,.78);color:#eaf0fa;padding:6px 9px;border-radius:9px;font-size:12px;font-weight:750}.guide-shot-wrap figcaption{margin-top:7px;color:#9cacc1;font-size:13px;line-height:1.45}
+    .guide-video-wrap{margin:16px 0 2px;max-width:820px}.guide-video{display:block;width:100%;max-height:520px;border:1px solid #314765;border-radius:14px;background:#050b14}.guide-video-wrap figcaption{margin-top:7px;color:#9cacc1;font-size:13px;line-height:1.45}
     .shot-editor{margin-top:12px;padding:13px;border:1px dashed #355071;border-radius:14px;background:#091523}.shot-editor-title{font-weight:800;margin-bottom:12px}.shot-editor-title span{font-weight:600;color:#9cacc1;font-size:12px;margin-left:5px}.current-shot{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px;background:#0c1a2a;border:1px solid #273c57;border-radius:12px}.current-shot img{width:130px;max-height:90px;object-fit:cover;border-radius:9px;border:1px solid #314865}.current-shot small{display:block;color:#9cacc1;margin-bottom:7px}.stepcontent{min-width:0}
     @media(max-width:720px){.guide-shot{max-height:380px}.current-shot{align-items:flex-start;flex-direction:column}.current-shot img{width:100%;max-height:180px}.hero{padding:20px!important}.card{padding:17px!important}}
   `;
@@ -36,6 +37,7 @@ window.addEventListener("load", async () => {
   const supa = window.supabase.createClient(cfg.url, cfg.key);
   const BUCKET = "guide-images";
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
   async function isAdmin() {
     const { data: { user } } = await supa.auth.getUser();
@@ -55,7 +57,7 @@ window.addEventListener("load", async () => {
 
   updateAdminView = function () {
     if (document.getElementById("adminModeText")) document.getElementById("adminModeText").textContent = "Supabase Auth";
-    if (document.getElementById("storageModeText")) document.getElementById("storageModeText").textContent = "Supabase + screenshots";
+    if (document.getElementById("storageModeText")) document.getElementById("storageModeText").textContent = "Supabase + media";
     if (document.getElementById("backendModeText")) document.getElementById("backendModeText").textContent = "Ansluten";
     if (document.getElementById("loginConnected")) document.getElementById("loginConnected").classList.remove("hidden");
     if (document.getElementById("loginDemo")) document.getElementById("loginDemo").classList.add("hidden");
@@ -82,7 +84,8 @@ window.addEventListener("load", async () => {
     let html = '<div class="steps">';
     (p.steps || []).forEach((step, i) => {
       const shot = step.imageUrl ? `<figure class="guide-shot-wrap"><a class="guide-shot-link" href="${esc(step.imageUrl)}" target="_blank" rel="noopener"><img class="guide-shot" src="${esc(step.imageUrl)}" alt="${esc(step.imageCaption || ('Screenshot för ' + (step.title || 'detta steg')))}" loading="lazy"><span class="zoom-hint">Klicka för större bild</span></a>${step.imageCaption ? `<figcaption>${esc(step.imageCaption)}</figcaption>` : ""}</figure>` : "";
-      html += `<div class="step"><div class="num">${i + 1}</div><div class="stepcontent"><h3>${esc(step.title)}</h3><p>${esc(step.text)}</p>${shot}</div></div>`;
+      const video = step.videoUrl ? `<figure class="guide-video-wrap"><video class="guide-video" controls preload="metadata" playsinline src="${esc(step.videoUrl)}"></video>${step.videoCaption ? `<figcaption>${esc(step.videoCaption)}</figcaption>` : ""}</figure>` : "";
+      html += `<div class="step"><div class="num">${i + 1}</div><div class="stepcontent"><h3>${esc(step.title)}</h3><p>${esc(step.text)}</p>${shot}${video}</div></div>`;
     });
     html += "</div>";
     if (p.note) html += `<div class="callout ${p.noteType || 'info'}"><strong>Viktigt</strong><p>${esc(p.note)}</p></div>`;
@@ -91,7 +94,8 @@ window.addEventListener("load", async () => {
 
   function editorMarkup(step = {}, i = 0) {
     const hasImage = !!step.imageUrl;
-    return `<div class="stepedit" data-index="${i}" data-remove-image="0"><div class="stepeditbar"><strong>Steg ${i + 1}</strong><button class="btn small danger" data-remove-step="${i}" type="button">Ta bort</button></div><div class="field"><label>Rubrik</label><input class="stepTitle" value="${esc(step.title || '')}"></div><div class="field"><label>Text</label><textarea class="stepText">${esc(step.text || '')}</textarea></div><div class="shot-editor"><div class="shot-editor-title">Screenshot <span>valfritt</span></div><div class="current-shot ${hasImage ? '' : 'hidden'}">${hasImage ? `<img src="${esc(step.imageUrl)}" alt="Nuvarande screenshot"><div><small>Nuvarande bild</small><button class="btn small" type="button" data-remove-image>Ta bort screenshot</button></div>` : ''}</div><div class="field"><label>Ladda upp / byt screenshot</label><input class="stepImageFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="hint selected-file-name">PNG, JPG eller WebP · max 5 MB</div></div><div class="field"><label>Bildtext</label><input class="stepImageCaption" value="${esc(step.imageCaption || '')}" placeholder="T.ex. Klicka på Go Live uppe till höger"></div><input class="stepImageUrl" type="hidden" value="${esc(step.imageUrl || '')}"><input class="stepImagePath" type="hidden" value="${esc(step.imagePath || '')}"></div></div>`;
+    const hasVideo = !!step.videoUrl;
+    return `<div class="stepedit" data-index="${i}" data-remove-image="0" data-remove-video="0"><div class="stepeditbar"><strong>Steg ${i + 1}</strong><button class="btn small danger" data-remove-step="${i}" type="button">Ta bort</button></div><div class="field"><label>Rubrik</label><input class="stepTitle" value="${esc(step.title || '')}"></div><div class="field"><label>Text</label><textarea class="stepText">${esc(step.text || '')}</textarea></div><div class="shot-editor"><div class="shot-editor-title">Screenshot <span>valfritt</span></div><div class="current-shot ${hasImage ? '' : 'hidden'}">${hasImage ? `<img src="${esc(step.imageUrl)}" alt="Nuvarande screenshot"><div><small>Nuvarande bild</small><button class="btn small" type="button" data-remove-image>Ta bort screenshot</button></div>` : ''}</div><div class="field"><label>Ladda upp / byt screenshot</label><input class="stepImageFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="hint selected-file-name">PNG, JPG eller WebP · max 5 MB</div></div><div class="field"><label>Bildtext</label><input class="stepImageCaption" value="${esc(step.imageCaption || '')}" placeholder="T.ex. Klicka på Go Live uppe till höger"></div><input class="stepImageUrl" type="hidden" value="${esc(step.imageUrl || '')}"><input class="stepImagePath" type="hidden" value="${esc(step.imagePath || '')}"></div><div class="shot-editor"><div class="shot-editor-title">Skärminspelning <span>valfritt</span></div><div class="current-shot ${hasVideo ? '' : 'hidden'}">${hasVideo ? `<video src="${esc(step.videoUrl)}" controls preload="metadata" style="width:180px;max-height:110px;border-radius:9px;background:#050b14"></video><div><small>Nuvarande inspelning</small><button class="btn small" type="button" data-remove-video>Ta bort inspelning</button></div>` : ''}</div><div class="field"><label>Ladda upp / byt skärminspelning</label><input class="stepVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"><div class="hint selected-video-file-name">MP4, WebM eller MOV · max 50 MB. MP4 fungerar bäst på alla enheter.</div></div><div class="field"><label>Videotext</label><input class="stepVideoCaption" value="${esc(step.videoCaption || '')}" placeholder="T.ex. Så här startar du streamen"></div><input class="stepVideoUrl" type="hidden" value="${esc(step.videoUrl || '')}"><input class="stepVideoPath" type="hidden" value="${esc(step.videoPath || '')}"></div></div>`;
   }
 
   renderStepEditor = function (steps) {
@@ -107,13 +111,21 @@ window.addEventListener("load", async () => {
       const imageUrl = el.querySelector(".stepImageUrl")?.value || "";
       const imagePath = el.querySelector(".stepImagePath")?.value || "";
       const imageCaption = el.querySelector(".stepImageCaption")?.value.trim() || "";
+      const videoUrl = el.querySelector(".stepVideoUrl")?.value || "";
+      const videoPath = el.querySelector(".stepVideoPath")?.value || "";
+      const videoCaption = el.querySelector(".stepVideoCaption")?.value.trim() || "";
       if (imageUrl) {
         step.imageUrl = imageUrl;
         step.imagePath = imagePath;
         if (imageCaption) step.imageCaption = imageCaption;
       }
+      if (videoUrl) {
+        step.videoUrl = videoUrl;
+        step.videoPath = videoPath;
+        if (videoCaption) step.videoCaption = videoCaption;
+      }
       return step;
-    }).filter((s) => s.title || s.text || s.imageUrl);
+    }).filter((s) => s.title || s.text || s.imageUrl || s.videoUrl);
   };
 
   openEditPage = function (key) {
@@ -153,6 +165,20 @@ window.addEventListener("load", async () => {
     return { imagePath: path, imageUrl: pub.publicUrl };
   }
 
+  async function uploadRecording(file, stepIndex) {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    const allowedType = /^(video\/(mp4|webm|quicktime))$/.test(file.type) || ["mp4","webm","mov"].includes(ext);
+    if (!allowedType) throw new Error("Skärminspelningen måste vara MP4, WebM eller MOV.");
+    if (file.size > MAX_VIDEO_BYTES) throw new Error("Skärminspelningen är större än 50 MB.");
+    const uid = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const path = `${editingPageKey}/video-${Date.now()}-${stepIndex + 1}-${uid}-${safeFileName(file.name)}`;
+    const contentType = file.type || (ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4");
+    const { error } = await supa.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false, contentType });
+    if (error) throw new Error(`Kunde inte ladda upp skärminspelning: ${error.message}`);
+    const { data: pub } = supa.storage.from(BUCKET).getPublicUrl(path);
+    return { videoPath: path, videoUrl: pub.publicUrl };
+  }
+
   async function collectStepsWithUploads() {
     const out = [];
     const editors = [...document.querySelectorAll("#stepEditor .stepedit")];
@@ -160,14 +186,20 @@ window.addEventListener("load", async () => {
       const el = editors[i];
       const title = el.querySelector(".stepTitle").value.trim();
       const text = el.querySelector(".stepText").value.trim();
-      const caption = el.querySelector(".stepImageCaption").value.trim();
-      const file = el.querySelector(".stepImageFile").files[0];
+
+      const imageCaption = el.querySelector(".stepImageCaption").value.trim();
+      const imageFile = el.querySelector(".stepImageFile").files[0];
       let imageUrl = el.querySelector(".stepImageUrl").value;
       let imagePath = el.querySelector(".stepImagePath").value;
 
-      if (file) {
+      const videoCaption = el.querySelector(".stepVideoCaption").value.trim();
+      const videoFile = el.querySelector(".stepVideoFile").files[0];
+      let videoUrl = el.querySelector(".stepVideoUrl").value;
+      let videoPath = el.querySelector(".stepVideoPath").value;
+
+      if (imageFile) {
         const old = imagePath;
-        const uploaded = await uploadScreenshot(file, i);
+        const uploaded = await uploadScreenshot(imageFile, i);
         imageUrl = uploaded.imageUrl;
         imagePath = uploaded.imagePath;
         if (old) await deleteOld(old);
@@ -177,12 +209,29 @@ window.addEventListener("load", async () => {
         imagePath = "";
       }
 
-      if (title || text || imageUrl) {
+      if (videoFile) {
+        const old = videoPath;
+        const uploaded = await uploadRecording(videoFile, i);
+        videoUrl = uploaded.videoUrl;
+        videoPath = uploaded.videoPath;
+        if (old) await deleteOld(old);
+      } else if (el.dataset.removeVideo === "1") {
+        if (videoPath) await deleteOld(videoPath);
+        videoUrl = "";
+        videoPath = "";
+      }
+
+      if (title || text || imageUrl || videoUrl) {
         const step = { title, text };
         if (imageUrl) {
           step.imageUrl = imageUrl;
           step.imagePath = imagePath;
-          if (caption) step.imageCaption = caption;
+          if (imageCaption) step.imageCaption = imageCaption;
+        }
+        if (videoUrl) {
+          step.videoUrl = videoUrl;
+          step.videoPath = videoPath;
+          if (videoCaption) step.videoCaption = videoCaption;
         }
         out.push(step);
       }
@@ -227,25 +276,50 @@ window.addEventListener("load", async () => {
 
   document.addEventListener("click", (event) => {
     const removeImage = event.target.closest("[data-remove-image]");
-    if (!removeImage) return;
-    const editor = removeImage.closest(".stepedit");
-    if (!editor) return;
-    editor.dataset.removeImage = "1";
-    editor.querySelector(".current-shot")?.classList.add("hidden");
-    const fileInput = editor.querySelector(".stepImageFile");
-    if (fileInput) fileInput.value = "";
-    const label = editor.querySelector(".selected-file-name");
-    if (label) label.textContent = "Screenshot tas bort när du sparar.";
+    if (removeImage) {
+      const editor = removeImage.closest(".stepedit");
+      if (!editor) return;
+      editor.dataset.removeImage = "1";
+      removeImage.closest(".current-shot")?.classList.add("hidden");
+      const fileInput = editor.querySelector(".stepImageFile");
+      if (fileInput) fileInput.value = "";
+      const label = editor.querySelector(".selected-file-name");
+      if (label) label.textContent = "Screenshot tas bort när du sparar.";
+      return;
+    }
+
+    const removeVideo = event.target.closest("[data-remove-video]");
+    if (removeVideo) {
+      const editor = removeVideo.closest(".stepedit");
+      if (!editor) return;
+      editor.dataset.removeVideo = "1";
+      removeVideo.closest(".current-shot")?.classList.add("hidden");
+      const fileInput = editor.querySelector(".stepVideoFile");
+      if (fileInput) fileInput.value = "";
+      const label = editor.querySelector(".selected-video-file-name");
+      if (label) label.textContent = "Skärminspelningen tas bort när du sparar.";
+    }
   });
 
   document.addEventListener("change", (event) => {
-    if (!event.target.matches(".stepImageFile")) return;
-    const editor = event.target.closest(".stepedit");
-    const file = event.target.files[0];
-    if (!editor || !file) return;
-    editor.dataset.removeImage = "0";
-    const label = editor.querySelector(".selected-file-name");
-    if (label) label.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+    if (event.target.matches(".stepImageFile")) {
+      const editor = event.target.closest(".stepedit");
+      const file = event.target.files[0];
+      if (!editor || !file) return;
+      editor.dataset.removeImage = "0";
+      const label = editor.querySelector(".selected-file-name");
+      if (label) label.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+      return;
+    }
+
+    if (event.target.matches(".stepVideoFile")) {
+      const editor = event.target.closest(".stepedit");
+      const file = event.target.files[0];
+      if (!editor || !file) return;
+      editor.dataset.removeVideo = "0";
+      const label = editor.querySelector(".selected-video-file-name");
+      if (label) label.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+    }
   });
 
   // Real Supabase login (no demo password).
