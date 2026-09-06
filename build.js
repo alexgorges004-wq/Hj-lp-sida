@@ -5,8 +5,15 @@ const out = path.join(__dirname, "dist");
 fs.rmSync(out, {recursive:true, force:true});
 fs.mkdirSync(out, {recursive:true});
 
-for (const file of ["index.html","app.js","config.js","frontpage-admin.js"]) {
+for (const file of ["index.html","app.js","config.js","frontpage-admin.js","recovery.js"]) {
   fs.copyFileSync(path.join(__dirname,file), path.join(out,file));
+}
+
+const indexPath = path.join(out, "index.html");
+let html = fs.readFileSync(indexPath, "utf8");
+if (!html.includes('src="recovery.js"')) {
+  html = html.replace("</body>", '<script src="recovery.js"></script>\n</body>');
+  fs.writeFileSync(indexPath, html);
 }
 
 console.log("Built static site to dist/");
