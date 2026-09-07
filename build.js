@@ -17,6 +17,7 @@ for (const file of [
   "v2-core.js",
   "v2-layout.js",
   "v2-tools.js",
+  "v2-height-fix.js",
   "favicon.ico"
 ]) {
   fs.copyFileSync(path.join(__dirname, file), path.join(out, file));
