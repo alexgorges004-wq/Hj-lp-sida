@@ -1,0 +1,15 @@
+name: v2 validation
+on:
+  push:
+    branches: [v2-stability-features]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app.js && node --check config.js && node --check frontpage-core.js && node --check home-text-blocks.js && node --check recovery.js && node --check polish.js && node --check v2.js && node --check v2-core.js && node --check v2-layout.js && node --check v2-tools.js && node --check netlify/functions/admin-users.mjs
+      - run: npm install --ignore-scripts
+      - run: npm run build
