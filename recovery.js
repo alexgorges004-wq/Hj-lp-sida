@@ -1,247 +1,60 @@
 (() => {
-  function ensureTrash() {
-    if (!Array.isArray(data.deletedGuides)) data.deletedGuides = [];
-    return data.deletedGuides;
+  let editingCategoryId=null;
+  const clone=v=>typeof structuredClone==="function"?structuredClone(v):JSON.parse(JSON.stringify(v));
+  const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+  function ensure(){if(!Array.isArray(data.deletedGuides))data.deletedGuides=[];if(!Array.isArray(data.deletedCategories))data.deletedCategories=[]}
+  function fmt(v){try{return new Intl.DateTimeFormat("sv-SE",{dateStyle:"medium",timeStyle:"short"}).format(new Date(v))}catch{return v||"Okänd tid"}}
+  function media(page){const out=[];(page?.steps||[]).forEach(s=>{if(s.imagePath)out.push(s.imagePath);if(s.videoPath)out.push(s.videoPath)});return out}
+  async function deleteMedia(paths){const unique=[...new Set(paths.filter(Boolean))];if(!unique.length)return;const cfg=window.LIVESTREAM_SUPABASE;if(!cfg?.url||!cfg?.key||!window.supabase)return;const c=window.supabase.createClient(cfg.url,cfg.key);const{error}=await c.storage.from("guide-images").remove(unique);if(error)console.warn("Kunde inte radera media",error)}
+  function count(){ensure();return data.deletedGuides.length+data.deletedCategories.length}
+
+  const style=document.createElement("style");style.textContent=`.front-recovery-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.trash-list{display:grid;gap:10px}.trash-section-title{margin:15px 0 6px;color:#91a5bd;font-size:12px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.trash-item{border:1px solid #2a405c;border-radius:14px;background:#0b1829;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:14px}.trash-item-title{font-weight:850}.trash-item-meta{color:#93a6bf;font-size:12px;margin-top:4px}.trash-item-actions{display:flex;gap:8px;flex-wrap:wrap}.trash-empty{padding:18px;border:1px dashed #304763;border-radius:14px;background:#091523;color:#8fa2ba;text-align:center}.recovery-note{margin-bottom:14px;padding:11px 12px;border:1px solid #2e4664;border-radius:12px;background:#0a1727;color:#9fb0c5;font-size:13px;line-height:1.45}@media(max-width:720px){.front-recovery-actions{width:100%}.front-recovery-actions .btn{flex:1}.trash-item{align-items:stretch;flex-direction:column}.trash-item-actions .btn{flex:1}}`;document.head.appendChild(style);
+
+  function modal(){
+    if(document.getElementById("trashGuidesModal"))return;
+    document.body.insertAdjacentHTML("beforeend",`<div class="modalback hidden" id="trashGuidesModal"><div class="modal"><div class="modalhead"><h2>Papperskorg</h2><button class="close" id="trashClose" type="button">×</button></div><div class="modalbody"><div class="recovery-note">Borttagna guider och kategorier ligger kvar här tills du väljer Ta bort permanent. Bilder och videor behålls tills dess.</div><div id="trashGuidesList" class="trash-list"></div></div><div class="modalfooter"><button class="btn" id="trashDone" type="button">Stäng</button></div></div></div>`);
+    const close=()=>document.getElementById("trashGuidesModal").classList.add("hidden");document.getElementById("trashClose").onclick=close;document.getElementById("trashDone").onclick=close;
+  }
+  function toolbar(){
+    if(!admin)return;const bar=document.querySelector(".front-admin-toolbar");if(!bar)return;
+    let actions=bar.querySelector(".front-recovery-actions");if(!actions){actions=document.createElement("div");actions.className="front-recovery-actions";const add=bar.querySelector("#addCategoryBtn");if(add){add.parentNode.insertBefore(actions,add);actions.appendChild(add)}else bar.appendChild(actions)}
+    let btn=document.getElementById("trashGuidesBtn");if(!btn){btn=document.createElement("button");btn.id="trashGuidesBtn";btn.type="button";btn.className="btn";actions.prepend(btn)}const n=count();btn.textContent=`🗑 Papperskorg${n?` (${n})`:""}`;
+  }
+  function renderTrash(){
+    ensure();modal();const list=document.getElementById("trashGuidesList");if(!count()){list.innerHTML='<div class="trash-empty">Papperskorgen är tom.</div>';return}
+    let h="";
+    if(data.deletedCategories.length){h+='<div class="trash-section-title">Kategorier</div>';h+=data.deletedCategories.map(x=>{const n=Object.keys(x.pages||{}).length,id=x.category?.id||"";return `<div class="trash-item"><div><div class="trash-item-title">${esc(x.category?.title||"Namnlös kategori")}</div><div class="trash-item-meta">${n} guide${n===1?"":"r"} · Borttagen ${esc(fmt(x.deletedAt))}</div></div><div class="trash-item-actions"><button class="btn small primary" data-restore-category="${esc(id)}" type="button">Återställ</button><button class="btn small danger" data-delete-category-forever="${esc(id)}" type="button">Ta bort permanent</button></div></div>`}).join("")}
+    if(data.deletedGuides.length){h+='<div class="trash-section-title">Guider</div>';h+=data.deletedGuides.map(x=>`<div class="trash-item"><div><div class="trash-item-title">${esc(x.page?.title||"Namnlös guide")}</div><div class="trash-item-meta">Från ${esc(x.categoryTitle||"okänd kategori")} · Borttagen ${esc(fmt(x.deletedAt))}</div></div><div class="trash-item-actions"><button class="btn small primary" data-restore-guide="${esc(x.key)}" type="button">Återställ</button><button class="btn small danger" data-delete-guide-forever="${esc(x.key)}" type="button">Ta bort permanent</button></div></div>`).join("")}
+    list.innerHTML=h;
   }
 
-  function escapeHtml(value = "") {
-    return String(value).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-    }[c]));
+  async function trashGuide(key){
+    ensure();const page=data.pages?.[key];if(!page||!confirm(`Flytta guiden “${page.title||"Namnlös guide"}” till papperskorgen?`))return;const before=clone(data);
+    try{const cat=data.categories?.find(c=>c.id===page.group),order=data.guideOrder?.[page.group];data.deletedGuides.unshift({key,page:clone(page),groupId:page.group||"",categoryTitle:cat?.title||"",orderIndex:Array.isArray(order)?order.indexOf(key):-1,deletedAt:new Date().toISOString()});delete data.pages[key];if(Array.isArray(order))data.guideOrder[page.group]=order.filter(x=>x!==key);await saveContent();closeModal("editPageModal");renderHome();showHome();toast("Guiden flyttades till papperskorgen.")}
+    catch(e){data=before;renderHome();toast(e.message||"Kunde inte flytta guiden.")}
   }
-
-  function formatDeletedAt(value) {
-    if (!value) return "Okänd tid";
-    try {
-      return new Intl.DateTimeFormat("sv-SE", {
-        dateStyle: "medium",
-        timeStyle: "short"
-      }).format(new Date(value));
-    } catch {
-      return value;
-    }
+  async function trashCategory(id){
+    ensure();const cat=data.categories?.find(c=>c.id===id);if(!cat)return;const pages=Object.fromEntries(Object.entries(data.pages||{}).filter(([,p])=>p.group===id)),n=Object.keys(pages).length;if(!confirm(`Flytta kategorin “${cat.title}”${n?` och dess ${n} guide${n===1?"":"r"}`:""} till papperskorgen?`))return;const before=clone(data);
+    try{const catIndex=data.categories.findIndex(c=>c.id===id),homeIndex=(data.homeLayout||[]).indexOf(`cat:${id}`),v2Index=(data.homeLayoutV2||[]).indexOf(`cat:${id}`),order=clone(data.guideOrder?.[id]||[]);data.deletedCategories.unshift({category:clone(cat),pages:clone(pages),guideOrder:order,catIndex,homeIndex,v2Index,deletedAt:new Date().toISOString()});Object.keys(pages).forEach(k=>delete data.pages[k]);data.categories=data.categories.filter(c=>c.id!==id);if(Array.isArray(data.homeLayout))data.homeLayout=data.homeLayout.filter(r=>r!==`cat:${id}`);if(Array.isArray(data.homeLayoutV2))data.homeLayoutV2=data.homeLayoutV2.filter(r=>r!==`cat:${id}`);if(data.guideOrder)delete data.guideOrder[id];await saveContent();closeModal("categoryEditModal");renderHome();toast("Kategorin flyttades till papperskorgen.")}
+    catch(e){data=before;renderHome();toast(e.message||"Kunde inte flytta kategorin.")}
   }
-
-  function enhanceFrontToolbar() {
-    if (!admin) return;
-    const toolbar = document.querySelector(".front-admin-toolbar");
-    if (!toolbar || document.getElementById("trashGuidesBtn")) return;
-
-    const actions = document.createElement("div");
-    actions.className = "front-recovery-actions";
-
-    const count = ensureTrash().length;
-    const trash = document.createElement("button");
-    trash.className = "btn";
-    trash.type = "button";
-    trash.id = "trashGuidesBtn";
-    trash.innerHTML = `🗑 Papperskorg${count ? ` (${count})` : ""}`;
-
-    const addCategory = toolbar.querySelector("#addCategoryBtn");
-    if (addCategory) {
-      addCategory.parentNode.insertBefore(actions, addCategory);
-      actions.appendChild(trash);
-      actions.appendChild(addCategory);
-    } else {
-      toolbar.appendChild(actions);
-      actions.appendChild(trash);
-    }
+  async function restoreGuide(key){
+    const i=data.deletedGuides.findIndex(x=>x.key===key);if(i<0)return;const before=clone(data);try{const x=data.deletedGuides[i],p=clone(x.page);let k=x.key;if(data.pages[k])k=`restored-${Date.now()}`;let group=p.group||x.groupId;if(group&&!data.categories.some(c=>c.id===group))data.categories.push({id:group,title:x.categoryTitle||"Återställda guider",layout:"compact"});if(!group)group=data.categories[0]?.id||"other";p.group=group;data.pages[k]=p;data.deletedGuides.splice(i,1);if(!data.guideOrder)data.guideOrder={};if(!Array.isArray(data.guideOrder[group]))data.guideOrder[group]=[];const at=x.orderIndex>=0?Math.min(x.orderIndex,data.guideOrder[group].length):data.guideOrder[group].length;data.guideOrder[group].splice(at,0,k);await saveContent();renderHome();renderTrash();toast("Guiden är återställd.")}
+    catch(e){data=before;renderHome();renderTrash();throw e}
   }
-
-  const recoveryStyle = document.createElement("style");
-  recoveryStyle.textContent = `
-    .front-recovery-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .trash-list{display:grid;gap:10px}
-    .trash-empty{padding:18px;border:1px dashed #304763;border-radius:14px;background:#091523;color:#8fa2ba;text-align:center}
-    .trash-item{border:1px solid #2a405c;border-radius:14px;background:#0b1829;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:14px}
-    .trash-item-main{min-width:0}.trash-item-title{font-weight:850;color:#f3f6fb;margin-bottom:4px}.trash-item-meta{color:#93a6bf;font-size:12px;line-height:1.45}
-    .trash-item-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .recovery-note{margin-bottom:14px;padding:11px 12px;border:1px solid #2e4664;border-radius:12px;background:#0a1727;color:#9fb0c5;font-size:13px;line-height:1.45}
-    @media(max-width:720px){.front-recovery-actions{width:100%}.front-recovery-actions .btn{flex:1}.trash-item{align-items:stretch;flex-direction:column}.trash-item-actions{justify-content:flex-start}.trash-item-actions .btn{flex:1}}
-  `;
-  document.head.appendChild(recoveryStyle);
-
-  function ensureTrashModal() {
-    if (document.getElementById("trashGuidesModal")) return;
-    document.body.insertAdjacentHTML("beforeend", `
-      <div class="modalback hidden" id="trashGuidesModal">
-        <div class="modal">
-          <div class="modalhead">
-            <h2>Papperskorg</h2>
-            <button class="close" type="button" id="closeTrashGuides">×</button>
-          </div>
-          <div class="modalbody">
-            <div class="recovery-note">Borttagna guider sparas här tills du tar bort dem permanent. Screenshots och skärminspelningar behålls också, så guiden kan återställas komplett.</div>
-            <div id="trashGuidesList" class="trash-list"></div>
-          </div>
-          <div class="modalfooter">
-            <button class="btn" type="button" id="closeTrashGuidesFooter">Stäng</button>
-          </div>
-        </div>
-      </div>`);
-
-    const close = () => document.getElementById("trashGuidesModal").classList.add("hidden");
-    document.getElementById("closeTrashGuides").onclick = close;
-    document.getElementById("closeTrashGuidesFooter").onclick = close;
+  async function restoreCategory(id){
+    const i=data.deletedCategories.findIndex(x=>x.category?.id===id);if(i<0)return;const before=clone(data);try{const x=data.deletedCategories[i],cat=clone(x.category);let newId=cat.id;if(data.categories.some(c=>c.id===newId))newId=`${newId}-restored-${Date.now()}`;cat.id=newId;const idx=x.catIndex>=0?Math.min(x.catIndex,data.categories.length):data.categories.length;data.categories.splice(idx,0,cat);Object.entries(x.pages||{}).forEach(([k,p])=>{let key=k;if(data.pages[key])key=`restored-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;const page=clone(p);page.group=newId;data.pages[key]=page});if(!data.guideOrder)data.guideOrder={};data.guideOrder[newId]=(x.guideOrder||[]).filter(k=>data.pages[k]);const ref=`cat:${newId}`;if(!Array.isArray(data.homeLayout))data.homeLayout=[];if(!Array.isArray(data.homeLayoutV2))data.homeLayoutV2=["hero",...data.homeLayout];data.homeLayout.splice(x.homeIndex>=0?Math.min(x.homeIndex,data.homeLayout.length):data.homeLayout.length,0,ref);data.homeLayoutV2.splice(x.v2Index>=0?Math.min(x.v2Index,data.homeLayoutV2.length):data.homeLayoutV2.length,0,ref);data.deletedCategories.splice(i,1);await saveContent();renderHome();renderTrash();toast("Kategorin är återställd.")}
+    catch(e){data=before;renderHome();renderTrash();throw e}
   }
+  async function deleteGuideForever(key){const i=data.deletedGuides.findIndex(x=>x.key===key);if(i<0)return;const x=data.deletedGuides[i];if(!confirm(`Ta bort “${x.page?.title||"guiden"}” permanent? Detta går inte att ångra.`))return;const before=clone(data),paths=media(x.page);try{data.deletedGuides.splice(i,1);await saveContent();renderHome();renderTrash();await deleteMedia(paths);toast("Guiden är permanent borttagen.")}catch(e){data=before;renderHome();renderTrash();throw e}}
+  async function deleteCategoryForever(id){const i=data.deletedCategories.findIndex(x=>x.category?.id===id);if(i<0)return;const x=data.deletedCategories[i];if(!confirm(`Ta bort kategorin “${x.category?.title||"kategorin"}” permanent? Detta går inte att ångra.`))return;const before=clone(data),paths=Object.values(x.pages||{}).flatMap(media);try{data.deletedCategories.splice(i,1);await saveContent();renderHome();renderTrash();await deleteMedia(paths);toast("Kategorin är permanent borttagen.")}catch(e){data=before;renderHome();renderTrash();throw e}}
 
-  function renderTrash() {
-    ensureTrashModal();
-    const list = document.getElementById("trashGuidesList");
-    const trash = ensureTrash();
-
-    if (!trash.length) {
-      list.innerHTML = `<div class="trash-empty">Papperskorgen är tom.</div>`;
-      return;
-    }
-
-    list.innerHTML = trash.map((item) => {
-      const title = item.page?.title || "Namnlös guide";
-      const category = item.categoryTitle || "Okänd kategori";
-      return `<div class="trash-item" data-trash-key="${escapeHtml(item.key)}">
-        <div class="trash-item-main">
-          <div class="trash-item-title">${escapeHtml(title)}</div>
-          <div class="trash-item-meta">Från: ${escapeHtml(category)} · Borttagen ${escapeHtml(formatDeletedAt(item.deletedAt))}</div>
-        </div>
-        <div class="trash-item-actions">
-          <button class="btn primary" type="button" data-restore-guide="${escapeHtml(item.key)}">Återställ</button>
-          <button class="btn danger" type="button" data-delete-forever="${escapeHtml(item.key)}">Ta bort permanent</button>
-        </div>
-      </div>`;
-    }).join("");
-  }
-
-  async function restoreGuide(key) {
-    const trash = ensureTrash();
-    const index = trash.findIndex((item) => item.key === key);
-    if (index < 0) return;
-
-    const item = trash[index];
-    const page = JSON.parse(JSON.stringify(item.page || {}));
-    let restoreKey = item.key;
-    if (data.pages[restoreKey]) restoreKey = `restored-${Date.now()}`;
-
-    const group = page.group || item.groupId;
-    if (group && !data.categories?.some((c) => c.id === group)) {
-      if (!Array.isArray(data.categories)) data.categories = [];
-      data.categories.push({
-        id: group,
-        title: item.categoryTitle || "Återställda guider",
-        layout: "compact"
-      });
-    }
-
-    if (!page.group) page.group = group || data.categories?.[0]?.id || "other";
-    data.pages[restoreKey] = page;
-    trash.splice(index, 1);
-
-    await saveContent();
-    renderHome();
-    renderTrash();
-    toast("Guiden är återställd.");
-  }
-
-  async function deleteMediaForPage(page) {
-    const paths = [];
-    (page?.steps || []).forEach((step) => {
-      if (step.imagePath) paths.push(step.imagePath);
-      if (step.videoPath) paths.push(step.videoPath);
-    });
-    if (!paths.length) return;
-
-    const cfg = window.LIVESTREAM_SUPABASE;
-    if (!cfg?.url || !cfg?.key || !window.supabase) return;
-    const client = window.supabase.createClient(cfg.url, cfg.key);
-    const { error } = await client.storage.from("guide-images").remove(paths);
-    if (error) throw new Error(`Kunde inte ta bort media: ${error.message}`);
-  }
-
-  async function deleteForever(key) {
-    const trash = ensureTrash();
-    const index = trash.findIndex((item) => item.key === key);
-    if (index < 0) return;
-    const item = trash[index];
-    const title = item.page?.title || "guiden";
-
-    if (!confirm(`Ta bort “${title}” permanent? Detta går inte att ångra.`)) return;
-
-    await deleteMediaForPage(item.page);
-    trash.splice(index, 1);
-    await saveContent();
-    renderHome();
-    renderTrash();
-    toast("Guiden är permanent borttagen.");
-  }
-
-  // Wrap the dynamic home renderer so the trash button is always restored after re-rendering.
-  const baseRenderHome = renderHome;
-  renderHome = function () {
-    baseRenderHome();
-    enhanceFrontToolbar();
-  };
-
-  // Intercept the existing delete-guide button before its old permanent-delete handler runs.
-  document.addEventListener("click", async (event) => {
-    const deleteButton = event.target.closest("#deleteGuideBtn");
-    if (!deleteButton || !admin) return;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    const key = editingPageKey;
-    const page = data.pages?.[key];
-    if (!page) return;
-    if (!confirm(`Flytta guiden “${page.title}” till papperskorgen?`)) return;
-
-    ensureTrash();
-    const category = data.categories?.find((c) => c.id === page.group);
-    data.deletedGuides.unshift({
-      key,
-      page: JSON.parse(JSON.stringify(page)),
-      groupId: page.group || "",
-      categoryTitle: category?.title || "",
-      deletedAt: new Date().toISOString()
-    });
-
-    delete data.pages[key];
-    await saveContent();
-    closeModal("editPageModal");
-    showHome();
-    toast("Guiden flyttades till papperskorgen.");
-  }, true);
-
-  document.addEventListener("click", async (event) => {
-    if (!admin) return;
-
-    const trashButton = event.target.closest("#trashGuidesBtn");
-    if (trashButton) {
-      event.preventDefault();
-      renderTrash();
-      document.getElementById("trashGuidesModal").classList.remove("hidden");
-      return;
-    }
-
-    const restore = event.target.closest("[data-restore-guide]");
-    if (restore) {
-      event.preventDefault();
-      try { await restoreGuide(restore.dataset.restoreGuide); }
-      catch (error) { console.error(error); toast(error.message || "Kunde inte återställa guiden."); }
-      return;
-    }
-
-    const permanent = event.target.closest("[data-delete-forever]");
-    if (permanent) {
-      event.preventDefault();
-      try { await deleteForever(permanent.dataset.deleteForever); }
-      catch (error) { console.error(error); toast(error.message || "Kunde inte ta bort guiden permanent."); }
-    }
-  }, true);
-
-  window.addEventListener("load", () => {
-    ensureTrash();
-    ensureTrashModal();
-    setTimeout(() => {
-      renderHome();
-    }, 0);
-  });
+  const base=renderHome;renderHome=function(){base();ensure();toolbar()};
+  document.addEventListener("click",async e=>{
+    const ec=e.target.closest("[data-edit-category]");if(ec)editingCategoryId=ec.dataset.editCategory||null;
+    const gd=e.target.closest("#deleteGuideBtn");if(gd&&admin){e.preventDefault();e.stopImmediatePropagation();await trashGuide(editingPageKey);return}
+    const cd=e.target.closest("#deleteCategoryBtn");if(cd&&admin){e.preventDefault();e.stopImmediatePropagation();await trashCategory(editingCategoryId);return}
+  },true);
+  document.addEventListener("click",async e=>{if(!admin)return;try{if(e.target.closest("#trashGuidesBtn")){e.preventDefault();renderTrash();document.getElementById("trashGuidesModal").classList.remove("hidden");return}const rg=e.target.closest("[data-restore-guide]"),rc=e.target.closest("[data-restore-category]"),dg=e.target.closest("[data-delete-guide-forever]"),dc=e.target.closest("[data-delete-category-forever]");if(rg)await restoreGuide(rg.dataset.restoreGuide);else if(rc)await restoreCategory(rc.dataset.restoreCategory);else if(dg)await deleteGuideForever(dg.dataset.deleteGuideForever);else if(dc)await deleteCategoryForever(dc.dataset.deleteCategoryForever)}catch(err){console.error(err);toast(err.message||"Åtgärden kunde inte slutföras.")}},true);
+  window.addEventListener("load",()=>{ensure();modal();setTimeout(renderHome,0)});
 })();
