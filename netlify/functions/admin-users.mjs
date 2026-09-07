@@ -18,7 +18,7 @@ export const handler = async (event) => {
   if (!token) return json(401, { error: "Du är inte inloggad." });
 
   const supabase = createClient(SUPABASE_URL, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
 
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -39,6 +39,8 @@ export const handler = async (event) => {
   catch { return json(400, { error: "Ogiltig begäran." }); }
 
   const action = body.action;
+  const siteUrl = String(process.env.URL || "https://livestream-help.netlify.app").replace(/\/+$/, "");
+  const inviteRedirect = `${siteUrl}/?setup=admin`;
 
   async function allAuthUsers() {
     const users = [];
@@ -79,17 +81,52 @@ export const handler = async (event) => {
     if (action === "invite") {
       const email = String(body.email || "").trim().toLowerCase();
       if (!/^\S+@\S+\.\S+$/.test(email)) return json(400, { error: "Ogiltig e-postadress." });
+
       const authUsers = await allAuthUsers();
       let user = authUsers.find((item) => String(item.email || "").toLowerCase() === email) || null;
-      if (!user) {
-        const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
-        if (error) throw error;
-        user = data?.user || null;
+
+      if (user) {
+        const { data: existingAdmin, error: existingAdminError } = await supabase
+          .from("admins")
+          .select("user_id,role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (existingAdminError) throw existingAdminError;
+
+        const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
+        if (confirmed || existingAdmin?.role === "owner") {
+          if (!existingAdmin) {
+            const { error } = await supabase.from("admins").insert({ user_id: user.id, role: "admin" });
+            if (error) throw error;
+          }
+          return json(200, {
+            ok: true,
+            invited: false,
+            user: { id: user.id, email: user.email, role: existingAdmin?.role === "owner" ? "owner" : "admin" }
+          });
+        }
+
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+        if (deleteError) throw deleteError;
+        user = null;
       }
-      if (!user) throw new Error("Kunde inte skapa eller hitta användaren.");
-      const { error } = await supabase.from("admins").upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id" });
+
+      const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, { redirectTo: inviteRedirect });
       if (error) throw error;
-      return json(200, { ok: true, user: { id: user.id, email: user.email, role: "admin" } });
+      user = data?.user || null;
+      if (!user) throw new Error("Kunde inte skapa den inbjudna användaren.");
+
+      const { error: adminError } = await supabase
+        .from("admins")
+        .upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id" });
+      if (adminError) throw adminError;
+
+      return json(200, {
+        ok: true,
+        invited: true,
+        redirectTo: inviteRedirect,
+        user: { id: user.id, email: user.email, role: "admin" }
+      });
     }
 
     if (action === "setRole") {
