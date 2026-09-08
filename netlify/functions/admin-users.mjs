@@ -1,12 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://toluklygrkzsfpqoxkvm.supabase.co";
+const AUTH_TIMEOUT_MS = 7500;
 
 const json = (statusCode, payload) => ({
   statusCode,
   headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   body: JSON.stringify(payload)
 });
+
+const withTimeout = (promise, label = "Supabase Auth") => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} svarade inte i tid.`)), AUTH_TIMEOUT_MS))
+]);
 
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
@@ -21,17 +27,23 @@ export const handler = async (event) => {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
 
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
-  const caller = authData?.user;
-  if (authError || !caller) return json(401, { error: "Ogiltig session." });
+  let authData;
+  try {
+    const result = await withTimeout(supabase.auth.getUser(token), "Sessionskontrollen");
+    authData = result.data;
+    if (result.error || !authData?.user) return json(401, { error: "Ogiltig session." });
+  } catch (error) {
+    return json(504, { error: error?.message || "Sessionskontrollen svarade inte i tid." });
+  }
 
+  const caller = authData.user;
   const { data: callerRow, error: callerError } = await supabase
     .from("admins")
     .select("user_id,role")
     .eq("user_id", caller.id)
     .maybeSingle();
 
-  if (callerError) return json(503, { error: "Adminroller är inte aktiverade ännu. Kör supabase-v2.sql i Supabase." });
+  if (callerError) return json(503, { error: "Kunde inte verifiera din adminroll i Supabase." });
   if (!callerRow || callerRow.role !== "owner") return json(403, { error: "Endast Ägare kan hantera admins." });
 
   let body = {};
@@ -46,40 +58,26 @@ export const handler = async (event) => {
     const users = [];
     let page = 1;
     while (page <= 10) {
-      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
+      const { data, error } = await withTimeout(
+        supabase.auth.admin.listUsers({ page, perPage: 100 }),
+        "Listan över inloggningskonton"
+      );
       if (error) throw error;
-      users.push(...(data?.users || []));
-      if ((data?.users || []).length < 100) break;
+      const batch = data?.users || [];
+      users.push(...batch);
+      if (batch.length < 100) break;
       page += 1;
     }
     return users;
   }
 
   async function ownerCount() {
-    const { count, error } = await supabase.from("admins").select("user_id", { count: "exact", head: true }).eq("role", "owner");
+    const { count, error } = await supabase
+      .from("admins")
+      .select("user_id", { count: "exact", head: true })
+      .eq("role", "owner");
     if (error) throw error;
     return count || 0;
-  }
-
-  async function adminRowsWithEmails(rows = []) {
-    return Promise.all(rows.map(async (row) => {
-      try {
-        const { data, error } = await supabase.auth.admin.getUserById(row.user_id);
-        if (error) throw error;
-        return {
-          id: row.user_id,
-          email: data?.user?.email || "",
-          role: row.role === "owner" ? "owner" : "admin"
-        };
-      } catch (error) {
-        console.warn("Kunde inte läsa adminens e-post", row.user_id, error?.message || error);
-        return {
-          id: row.user_id,
-          email: "",
-          role: row.role === "owner" ? "owner" : "admin"
-        };
-      }
-    }));
   }
 
   try {
@@ -90,7 +88,13 @@ export const handler = async (event) => {
         .order("role", { ascending: false });
       if (rowsError) throw rowsError;
 
-      const users = await adminRowsWithEmails(rows || []);
+      const authUsers = await allAuthUsers();
+      const emailById = new Map(authUsers.map((user) => [user.id, user.email || ""]));
+      const users = (rows || []).map((row) => ({
+        id: row.user_id,
+        email: emailById.get(row.user_id) || "",
+        role: row.role === "owner" ? "owner" : "admin"
+      }));
       return json(200, { users });
     }
 
@@ -120,13 +124,18 @@ export const handler = async (event) => {
 
         const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
         if (confirmed) {
-          if (!existingAdmin) {
-            const { error } = await supabase.from("admins").insert({ user_id: user.id, role: "admin" });
-            if (error) throw error;
-          }
-
-          const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: inviteRedirect });
+          const { error: resetError } = await withTimeout(
+            supabase.auth.resetPasswordForEmail(email, { redirectTo: inviteRedirect }),
+            "Lösenordsmejlet"
+          );
           if (resetError) throw resetError;
+
+          if (!existingAdmin) {
+            const { error: insertError } = await supabase
+              .from("admins")
+              .insert({ user_id: user.id, role: "admin" });
+            if (insertError) throw insertError;
+          }
 
           return json(200, {
             ok: true,
@@ -137,12 +146,18 @@ export const handler = async (event) => {
           });
         }
 
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+        const { error: deleteError } = await withTimeout(
+          supabase.auth.admin.deleteUser(user.id),
+          "Rensningen av den gamla inbjudan"
+        );
         if (deleteError) throw deleteError;
         user = null;
       }
 
-      const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, { redirectTo: inviteRedirect });
+      const { data, error } = await withTimeout(
+        supabase.auth.admin.inviteUserByEmail(email, { redirectTo: inviteRedirect }),
+        "Admininbjudan"
+      );
       if (error) throw error;
       user = data?.user || null;
       if (!user) throw new Error("Kunde inte skapa den inbjudna användaren.");
@@ -150,7 +165,11 @@ export const handler = async (event) => {
       const { error: adminError } = await supabase
         .from("admins")
         .upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id" });
-      if (adminError) throw adminError;
+      if (adminError) {
+        try { await withTimeout(supabase.auth.admin.deleteUser(user.id), "Återställningen efter ett fel"); }
+        catch (cleanupError) { console.warn("Kunde inte återställa misslyckad admininbjudan", cleanupError?.message || cleanupError); }
+        throw adminError;
+      }
 
       return json(200, {
         ok: true,
@@ -165,9 +184,17 @@ export const handler = async (event) => {
       const userId = String(body.userId || "");
       const role = body.role === "owner" ? "owner" : body.role === "admin" ? "admin" : null;
       if (!userId || !role) return json(400, { error: "Ogiltig roll." });
-      const { data: target, error: targetError } = await supabase.from("admins").select("user_id,role").eq("user_id", userId).maybeSingle();
+
+      const { data: target, error: targetError } = await supabase
+        .from("admins")
+        .select("user_id,role")
+        .eq("user_id", userId)
+        .maybeSingle();
       if (targetError || !target) return json(404, { error: "Adminen hittades inte." });
-      if (target.role === "owner" && role === "admin" && await ownerCount() <= 1) return json(400, { error: "Det måste alltid finnas minst en Ägare." });
+      if (target.role === "owner" && role === "admin" && await ownerCount() <= 1) {
+        return json(400, { error: "Det måste alltid finnas minst en Ägare." });
+      }
+
       const { error } = await supabase.from("admins").update({ role }).eq("user_id", userId);
       if (error) throw error;
       return json(200, { ok: true });
@@ -177,9 +204,17 @@ export const handler = async (event) => {
       const userId = String(body.userId || "");
       if (!userId) return json(400, { error: "Admin saknas." });
       if (userId === caller.id) return json(400, { error: "Du kan inte ta bort din egen adminbehörighet här." });
-      const { data: target, error: targetError } = await supabase.from("admins").select("user_id,role").eq("user_id", userId).maybeSingle();
+
+      const { data: target, error: targetError } = await supabase
+        .from("admins")
+        .select("user_id,role")
+        .eq("user_id", userId)
+        .maybeSingle();
       if (targetError || !target) return json(404, { error: "Adminen hittades inte." });
-      if (target.role === "owner" && await ownerCount() <= 1) return json(400, { error: "Det måste alltid finnas minst en Ägare." });
+      if (target.role === "owner" && await ownerCount() <= 1) {
+        return json(400, { error: "Det måste alltid finnas minst en Ägare." });
+      }
+
       const { error } = await supabase.from("admins").delete().eq("user_id", userId);
       if (error) throw error;
       return json(200, { ok: true });
@@ -188,6 +223,8 @@ export const handler = async (event) => {
     return json(400, { error: "Okänd åtgärd." });
   } catch (error) {
     console.error(error);
-    return json(500, { error: error?.message || "Serverfel." });
+    const message = error?.message || "Serverfel.";
+    const timedOut = /svarade inte i tid/i.test(message);
+    return json(timedOut ? 504 : 500, { error: message });
   }
 };
