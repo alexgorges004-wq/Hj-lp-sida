@@ -1,8 +1,7 @@
 (() => {
-  const cfg = window.LIVESTREAM_SUPABASE;
-  if (!cfg?.url || !cfg?.key || !window.supabase) return;
+  const supa = window.__livestreamSupabase;
+  if (!supa) return;
 
-  const supa = window.supabase.createClient(cfg.url, cfg.key);
   const S = window.LH2 = window.LH2 || {};
   S.supa = supa;
   S.hooks = S.hooks || { home: [], page: [], admin: [] };
@@ -136,10 +135,16 @@
   async function adminState(){
     const {data:{session}}=await supa.auth.getSession(); S.state.user=session?.user||null;
     if(!S.state.user) return {ok:false,role:"admin"};
-    const r=await supa.from("admins").select("role").eq("user_id",S.state.user.id).maybeSingle();
-    if(!r.error&&r.data) return {ok:true,role:r.data.role==="owner"?"owner":"admin"};
-    const legacy=await supa.from("admins").select("user_id").eq("user_id",S.state.user.id).maybeSingle();
-    return !legacy.error&&legacy.data?{ok:true,role:"owner"}:{ok:false,role:"admin"};
+
+    const {data:row,error}=await supa.from("admins").select("role").eq("user_id",S.state.user.id).maybeSingle();
+    if(error){
+      console.warn("Kunde inte verifiera adminrollen",error);
+      return {ok:false,role:"admin",error};
+    }
+    if(!row) return {ok:false,role:"admin"};
+    if(row.role==="owner") return {ok:true,role:"owner"};
+    if(row.role==="admin") return {ok:true,role:"admin"};
+    return {ok:false,role:"admin",error:new Error("Okänd adminroll i Supabase.")};
   }
   S.getAdminState=adminState;
   S.updateIdentity=()=>{ const e=document.getElementById("adminUserText"); if(e) e.textContent=S.state.user?`${S.state.user.email||"Admin"} · ${S.state.role==="owner"?"Ägare":"Admin"}`:"–"; };
