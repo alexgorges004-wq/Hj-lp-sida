@@ -3,16 +3,21 @@
   if (!S?.supa) return;
 
   const sitePath = window.location.pathname || "/";
-  const query = new URLSearchParams(window.location.search);
+  const initialSearch = String(window.__initialSearch ?? window.location.search ?? "");
+  const query = new URLSearchParams(initialSearch);
   const initialHash = String(window.__initialHash || window.location.hash || "");
   const hashParams = new URLSearchParams(initialHash.replace(/^#/, ""));
-  const callbackType = String(hashParams.get("type") || query.get("type") || "").toLowerCase();
-  const callbackToken = hashParams.get("access_token") || "";
-  const callbackCode = query.get("code") || "";
+
   const setupRequested = query.get("setup") === "admin";
-  const hasInviteCallback = callbackType === "invite" || callbackType === "recovery" || Boolean(callbackCode);
-  const hasInviteError = setupRequested && Boolean(hashParams.get("error_description") || query.get("error_description"));
-  const inviteFlow = hasInviteCallback || hasInviteError;
+  const callbackType = String(hashParams.get("type") || query.get("type") || "").toLowerCase();
+  const accessToken = hashParams.get("access_token") || "";
+  const refreshToken = hashParams.get("refresh_token") || "";
+  const callbackCode = query.get("code") || "";
+  const urlError = hashParams.get("error_description") || query.get("error_description") || "";
+
+  const tokenCallback = setupRequested && ["invite", "recovery"].includes(callbackType) && Boolean(accessToken && refreshToken);
+  const codeCallback = setupRequested && Boolean(callbackCode);
+  const inviteFlow = setupRequested;
 
   function jwtSubject(token) {
     try {
@@ -26,8 +31,9 @@
     }
   }
 
-  const expectedUserId = jwtSubject(callbackToken);
+  const expectedUserId = tokenCallback ? jwtSubject(accessToken) : "";
   let validatedUserId = "";
+  let callbackConsumed = false;
 
   const css = document.createElement("style");
   css.textContent = `
@@ -41,13 +47,10 @@
   `;
   document.head.appendChild(css);
 
-  function inviteErrorFromUrl() {
-    return hashParams.get("error_description") || query.get("error_description") || "";
-  }
-
   function ensureInviteScreen() {
     let screen = document.getElementById("v2InviteScreen");
     if (screen) return screen;
+
     screen = document.createElement("div");
     screen.id = "v2InviteScreen";
     screen.className = "v2-invite-screen";
@@ -76,8 +79,8 @@
       if (p1 !== p2) { error.textContent = "Lösenorden matchar inte."; return; }
 
       const { data: { session } } = await S.supa.auth.getSession();
-      if (!validatedUserId || !session?.user || session.user.id !== validatedUserId || (expectedUserId && session.user.id !== expectedUserId)) {
-        error.textContent = "Inbjudan matchar inte det inloggade kontot. Öppna länken igen eller be ägaren skicka en ny.";
+      if (!validatedUserId || !session?.user || session.user.id !== validatedUserId) {
+        error.textContent = "Inbjudan matchar inte den aktiva sessionen. Öppna länken igen eller be ägaren skicka en ny.";
         return;
       }
 
@@ -86,67 +89,95 @@
       btn.textContent = "Sparar…";
       error.textContent = "";
 
-      const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
-      if (updateError) {
-        error.textContent = updateError.message || "Kunde inte spara lösenordet.";
+      try {
+        const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
+        if (updateError) throw updateError;
+
+        document.getElementById("v2InvitePassword").value = "";
+        document.getElementById("v2InvitePassword2").value = "";
+        document.getElementById("v2InviteForm").classList.add("hidden");
+        document.getElementById("v2InviteText").textContent = "Kontot är aktiverat.";
+        document.getElementById("v2InviteDone").classList.remove("hidden");
+        history.replaceState(null, "", `${sitePath}#admin`);
+      } catch (updateError) {
+        error.textContent = updateError?.message || "Kunde inte spara lösenordet.";
         btn.disabled = false;
         btn.textContent = "Skapa lösenord";
-        return;
       }
-
-      document.getElementById("v2InviteForm").classList.add("hidden");
-      document.getElementById("v2InviteText").textContent = "Kontot är aktiverat.";
-      document.getElementById("v2InviteDone").classList.remove("hidden");
     };
 
     document.getElementById("v2InviteContinue").onclick = () => {
       window.location.replace(`${window.location.origin}${sitePath}#admin`);
     };
+
     return screen;
   }
 
-  async function showInviteIfReady(session, event = "") {
-    if (!inviteFlow) return;
+  function showError(message) {
     ensureInviteScreen();
-    const text = document.getElementById("v2InviteText");
     const form = document.getElementById("v2InviteForm");
-    const urlError = inviteErrorFromUrl();
-    form.classList.add("hidden");
+    if (form) form.classList.add("hidden");
+    const text = document.getElementById("v2InviteText");
+    if (text) text.textContent = message;
+  }
 
-    if (urlError) {
-      text.textContent = "Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.";
-      return;
-    }
-    if (!hasInviteCallback) {
-      text.textContent = "Den här sidan kan bara öppnas från en giltig admininbjudan.";
-      return;
-    }
+  function showForm(session) {
     if (!session?.user) {
-      text.textContent = "Verifierar länken…";
+      showError("Kunde inte verifiera adminkontot. Be ägaren skicka en ny inbjudan.");
       return;
     }
     if (expectedUserId && session.user.id !== expectedUserId) {
-      text.textContent = "Verifierar rätt adminkonto…";
-      return;
-    }
-    if (!expectedUserId && callbackCode && !["SIGNED_IN", "PASSWORD_RECOVERY"].includes(event)) {
-      text.textContent = "Verifierar rätt adminkonto…";
+      showError("Inbjudan matchar inte adminkontot. Be ägaren skicka en ny inbjudan.");
       return;
     }
 
     validatedUserId = session.user.id;
-    text.textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
-    form.classList.remove("hidden");
+    ensureInviteScreen();
+    document.getElementById("v2InviteText").textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
+    document.getElementById("v2InviteForm").classList.remove("hidden");
   }
 
-  if (inviteFlow) {
+  async function establishInviteSession() {
+    if (!inviteFlow || callbackConsumed) return;
+    callbackConsumed = true;
     ensureInviteScreen();
-    const urlError = inviteErrorFromUrl();
+
     if (urlError) {
-      showInviteIfReady(null, "URL_ERROR");
-    } else {
-      S.supa.auth.getSession().then(({ data }) => showInviteIfReady(data?.session, "CURRENT_SESSION"));
-      S.supa.auth.onAuthStateChange((event, session) => setTimeout(() => showInviteIfReady(session, event), 0));
+      showError("Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.");
+      return;
+    }
+
+    if (!tokenCallback && !codeCallback) {
+      showError("Den här sidan kan bara öppnas från en giltig admininbjudan eller lösenordslänk.");
+      return;
+    }
+
+    try {
+      let session = null;
+
+      if (tokenCallback) {
+        const { data, error } = await S.supa.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        if (error) throw error;
+        session = data?.session || null;
+      } else {
+        const { data, error } = await S.supa.auth.exchangeCodeForSession(callbackCode);
+        if (error) throw error;
+        session = data?.session || null;
+      }
+
+      if (!session?.user) throw new Error("Ingen giltig session skapades från länken.");
+      if (expectedUserId && session.user.id !== expectedUserId) throw new Error("Länken hör till ett annat konto.");
+
+      history.replaceState(null, "", `${sitePath}?setup=admin`);
+      showForm(session);
+    } catch (error) {
+      console.error("Kunde inte verifiera adminlänken", error);
+      showError("Länken är ogiltig eller har gått ut. Be ägaren skicka en ny inbjudan.");
     }
   }
+
+  if (inviteFlow) establishInviteSession();
 })();
