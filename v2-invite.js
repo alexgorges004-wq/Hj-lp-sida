@@ -7,6 +7,7 @@
   const query = new URLSearchParams(initialSearch);
   const initialHash = String(window.__initialHash || window.location.hash || "");
   const hashParams = new URLSearchParams(initialHash.replace(/^#/, ""));
+  const SETUP_MARKER_KEY = "livestreamAdminSetupUserId";
 
   const setupRequested = query.get("setup") === "admin";
   const callbackType = String(hashParams.get("type") || query.get("type") || "").toLowerCase();
@@ -29,6 +30,18 @@
     } catch {
       return "";
     }
+  }
+
+  function rememberSetupUser(userId) {
+    try { window.sessionStorage.setItem(SETUP_MARKER_KEY, String(userId || "")); } catch {}
+  }
+
+  function rememberedSetupUser() {
+    try { return String(window.sessionStorage.getItem(SETUP_MARKER_KEY) || ""); } catch { return ""; }
+  }
+
+  function clearSetupMarker() {
+    try { window.sessionStorage.removeItem(SETUP_MARKER_KEY); } catch {}
   }
 
   const expectedUserId = tokenCallback ? jwtSubject(accessToken) : "";
@@ -93,6 +106,7 @@
         const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
         if (updateError) throw updateError;
 
+        clearSetupMarker();
         document.getElementById("v2InvitePassword").value = "";
         document.getElementById("v2InvitePassword2").value = "";
         document.getElementById("v2InviteForm").classList.add("hidden");
@@ -127,6 +141,7 @@
       return;
     }
     if (expectedUserId && session.user.id !== expectedUserId) {
+      clearSetupMarker();
       showError("Inbjudan matchar inte adminkontot. Be ägaren skicka en ny inbjudan.");
       return;
     }
@@ -137,20 +152,39 @@
     document.getElementById("v2InviteForm").classList.remove("hidden");
   }
 
+  async function resumeVerifiedSetup() {
+    const rememberedUserId = rememberedSetupUser();
+    if (!rememberedUserId) return false;
+
+    const { data: { session } } = await S.supa.auth.getSession();
+    if (!session?.user || session.user.id !== rememberedUserId) {
+      clearSetupMarker();
+      return false;
+    }
+
+    validatedUserId = rememberedUserId;
+    showForm(session);
+    return true;
+  }
+
   async function establishInviteSession() {
     if (!inviteFlow || callbackConsumed) return;
     callbackConsumed = true;
     ensureInviteScreen();
 
     if (urlError) {
+      clearSetupMarker();
       showError("Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.");
       return;
     }
 
     if (!tokenCallback && !codeCallback) {
+      if (await resumeVerifiedSetup()) return;
       showError("Den här sidan kan bara öppnas från en giltig admininbjudan eller lösenordslänk.");
       return;
     }
+
+    clearSetupMarker();
 
     try {
       let session = null;
@@ -171,9 +205,11 @@
       if (!session?.user) throw new Error("Ingen giltig session skapades från länken.");
       if (expectedUserId && session.user.id !== expectedUserId) throw new Error("Länken hör till ett annat konto.");
 
+      rememberSetupUser(session.user.id);
       history.replaceState(null, "", `${sitePath}?setup=admin`);
       showForm(session);
     } catch (error) {
+      clearSetupMarker();
       console.error("Kunde inte verifiera adminlänken", error);
       showError("Länken är ogiltig eller har gått ut. Be ägaren skicka en ny inbjudan.");
     }
