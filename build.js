@@ -23,7 +23,8 @@ const staticFiles = [
 
 const syntaxFiles = [
   ...staticFiles.filter((file) => file.endsWith(".js")),
-  "netlify/functions/admin-users.mjs"
+  "netlify/functions/admin-users.mjs",
+  "api/admin-users.mjs"
 ];
 
 for (const file of syntaxFiles) {
