@@ -5,7 +5,7 @@
   const sitePath = window.location.pathname || "/";
   const query = new URLSearchParams(window.location.search);
   const initialHash = String(window.__initialHash || window.location.hash || "");
-  const inviteFlow = query.get("setup") === "admin" || /(?:^|[&#])type=invite(?:&|$)/i.test(initialHash);
+  const inviteFlow = query.get("setup") === "admin" || /(?:^|[&#])type=(invite|recovery)(?:&|$)/i.test(initialHash);
 
   const css = document.createElement("style");
   css.textContent = `
@@ -79,11 +79,11 @@
     const form = document.getElementById("v2InviteForm");
     const urlError = inviteErrorFromUrl();
     if (urlError) {
-      text.textContent = "Inbjudningslänken är ogiltig eller har gått ut. Be ägaren skicka en ny inbjudan.";
+      text.textContent = "Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.";
       return;
     }
     if (!session?.user) {
-      text.textContent = "Verifierar din inbjudan…";
+      text.textContent = "Verifierar länken…";
       return;
     }
     text.textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
@@ -132,7 +132,9 @@
         const r = await adminApi("invite", { email });
         if (emailInput) emailInput.value = "";
         await refreshAdmins();
-        toast(r.invited === false ? "Användaren har redan adminbehörighet." : "Admininbjudan skickad.");
+        if (r.setupSent && r.invited === false) toast("Nytt lösenordsmejl skickat till adminen.");
+        else if (r.invited === true) toast("Admininbjudan skickad.");
+        else toast("Användaren har redan adminbehörighet.");
       } catch (e) {
         toast(e.message || "Kunde inte bjuda in admin.");
       } finally {
