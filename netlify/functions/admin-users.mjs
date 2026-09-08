@@ -93,16 +93,31 @@ export const handler = async (event) => {
           .maybeSingle();
         if (existingAdminError) throw existingAdminError;
 
+        if (existingAdmin?.role === "owner") {
+          return json(200, {
+            ok: true,
+            invited: false,
+            setupSent: false,
+            user: { id: user.id, email: user.email, role: "owner" }
+          });
+        }
+
         const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
-        if (confirmed || existingAdmin?.role === "owner") {
+        if (confirmed) {
           if (!existingAdmin) {
             const { error } = await supabase.from("admins").insert({ user_id: user.id, role: "admin" });
             if (error) throw error;
           }
+
+          const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: inviteRedirect });
+          if (resetError) throw resetError;
+
           return json(200, {
             ok: true,
             invited: false,
-            user: { id: user.id, email: user.email, role: existingAdmin?.role === "owner" ? "owner" : "admin" }
+            setupSent: true,
+            redirectTo: inviteRedirect,
+            user: { id: user.id, email: user.email, role: "admin" }
           });
         }
 
@@ -124,6 +139,7 @@ export const handler = async (event) => {
       return json(200, {
         ok: true,
         invited: true,
+        setupSent: true,
         redirectTo: inviteRedirect,
         user: { id: user.id, email: user.email, role: "admin" }
       });
