@@ -5,7 +5,29 @@
   const sitePath = window.location.pathname || "/";
   const query = new URLSearchParams(window.location.search);
   const initialHash = String(window.__initialHash || window.location.hash || "");
-  const inviteFlow = query.get("setup") === "admin" || /(?:^|[&#])type=(invite|recovery)(?:&|$)/i.test(initialHash);
+  const hashParams = new URLSearchParams(initialHash.replace(/^#/, ""));
+  const callbackType = String(hashParams.get("type") || query.get("type") || "").toLowerCase();
+  const callbackToken = hashParams.get("access_token") || "";
+  const callbackCode = query.get("code") || "";
+  const setupRequested = query.get("setup") === "admin";
+  const hasInviteCallback = callbackType === "invite" || callbackType === "recovery" || Boolean(callbackCode);
+  const hasInviteError = setupRequested && Boolean(hashParams.get("error_description") || query.get("error_description"));
+  const inviteFlow = hasInviteCallback || hasInviteError;
+
+  function jwtSubject(token) {
+    try {
+      const part = String(token || "").split(".")[1];
+      if (!part) return "";
+      const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+      return String(JSON.parse(atob(padded))?.sub || "");
+    } catch {
+      return "";
+    }
+  }
+
+  const expectedUserId = jwtSubject(callbackToken);
+  let validatedUserId = "";
 
   const css = document.createElement("style");
   css.textContent = `
@@ -20,8 +42,7 @@
   document.head.appendChild(css);
 
   function inviteErrorFromUrl() {
-    const hp = new URLSearchParams(initialHash.replace(/^#/, ""));
-    return hp.get("error_description") || query.get("error_description") || "";
+    return hashParams.get("error_description") || query.get("error_description") || "";
   }
 
   function ensureInviteScreen() {
@@ -53,6 +74,13 @@
       const error = document.getElementById("v2InviteError");
       if (p1.length < 8) { error.textContent = "Lösenordet måste vara minst 8 tecken."; return; }
       if (p1 !== p2) { error.textContent = "Lösenorden matchar inte."; return; }
+
+      const { data: { session } } = await S.supa.auth.getSession();
+      if (!validatedUserId || !session?.user || session.user.id !== validatedUserId || (expectedUserId && session.user.id !== expectedUserId)) {
+        error.textContent = "Inbjudan matchar inte det inloggade kontot. Öppna länken igen eller be ägaren skicka en ny.";
+        return;
+      }
+
       const btn = document.getElementById("v2InviteSave");
       btn.disabled = true; btn.textContent = "Sparar…"; error.textContent = "";
       const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
@@ -72,41 +100,76 @@
     return screen;
   }
 
-  async function showInviteIfReady(session) {
+  async function showInviteIfReady(session, event = "") {
     if (!inviteFlow) return;
     ensureInviteScreen();
     const text = document.getElementById("v2InviteText");
     const form = document.getElementById("v2InviteForm");
     const urlError = inviteErrorFromUrl();
+    form.classList.add("hidden");
+
     if (urlError) {
       text.textContent = "Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.";
+      return;
+    }
+    if (!hasInviteCallback) {
+      text.textContent = "Den här sidan kan bara öppnas från en giltig admininbjudan.";
       return;
     }
     if (!session?.user) {
       text.textContent = "Verifierar länken…";
       return;
     }
+    if (expectedUserId && session.user.id !== expectedUserId) {
+      text.textContent = "Verifierar rätt adminkonto…";
+      return;
+    }
+    if (!expectedUserId && callbackCode && !["SIGNED_IN", "PASSWORD_RECOVERY"].includes(event)) {
+      text.textContent = "Verifierar rätt adminkonto…";
+      return;
+    }
+
+    validatedUserId = session.user.id;
     text.textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
     form.classList.remove("hidden");
   }
 
   if (inviteFlow) {
     ensureInviteScreen();
-    S.supa.auth.getSession().then(({ data }) => showInviteIfReady(data?.session));
-    S.supa.auth.onAuthStateChange((_event, session) => setTimeout(() => showInviteIfReady(session), 0));
+    const urlError = inviteErrorFromUrl();
+    if (urlError) {
+      showInviteIfReady(null, "URL_ERROR");
+    } else {
+      S.supa.auth.getSession().then(({ data }) => showInviteIfReady(data?.session, "CURRENT_SESSION"));
+      S.supa.auth.onAuthStateChange((event, session) => setTimeout(() => showInviteIfReady(session, event), 0));
+    }
   }
 
   async function adminApi(action, payload = {}) {
     const { data: { session } } = await S.supa.auth.getSession();
     if (!session?.access_token) throw new Error("Du är inte inloggad.");
-    const r = await fetch("/.netlify/functions/admin-users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ action, ...payload })
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    let r;
+    try {
+      r = await fetch("/.netlify/functions/admin-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action, ...payload }),
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") throw new Error("Adminservern svarade inte inom 10 sekunder.");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
     let body = {};
-    try { body = await r.json(); } catch {}
-    if (!r.ok) throw new Error(body.error || "Adminfunktionen kunde inte köras.");
+    const contentType = String(r.headers.get("content-type") || "");
+    if (contentType.includes("application/json")) {
+      try { body = await r.json(); } catch {}
+    }
+    if (!r.ok) throw new Error(body.error || `Serverfel ${r.status} från Netlify.`);
     return body;
   }
 
@@ -131,10 +194,10 @@
       try {
         const r = await adminApi("invite", { email });
         if (emailInput) emailInput.value = "";
-        await refreshAdmins();
         if (r.setupSent && r.invited === false) toast("Nytt lösenordsmejl skickat till adminen.");
         else if (r.invited === true) toast("Admininbjudan skickad.");
         else toast("Användaren har redan adminbehörighet.");
+        refreshAdmins().catch((error) => console.warn("Kunde inte uppdatera adminlistan", error));
       } catch (e) {
         toast(e.message || "Kunde inte bjuda in admin.");
       } finally {
