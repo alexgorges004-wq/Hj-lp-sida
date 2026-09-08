@@ -1,11 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const out = path.join(__dirname, "dist");
-fs.rmSync(out, { recursive: true, force: true });
-fs.mkdirSync(out, { recursive: true });
-
-for (const file of [
+const staticFiles = [
   "index.html",
   "app.js",
   "config.js",
@@ -19,9 +17,24 @@ for (const file of [
   "v2-tools.js",
   "v2-height-fix.js",
   "v2-invite.js",
+  "v2-admin-hardening.js",
   "favicon.ico"
-]) {
+];
+
+const syntaxFiles = [
+  ...staticFiles.filter((file) => file.endsWith(".js")),
+  "netlify/functions/admin-users.mjs"
+];
+
+for (const file of syntaxFiles) {
+  execFileSync(process.execPath, ["--check", path.join(__dirname, file)], { stdio: "inherit" });
+}
+
+fs.rmSync(out, { recursive: true, force: true });
+fs.mkdirSync(out, { recursive: true });
+
+for (const file of staticFiles) {
   fs.copyFileSync(path.join(__dirname, file), path.join(out, file));
 }
 
-console.log("Built static site to dist/");
+console.log("Syntax check passed. Built static site to dist/");
