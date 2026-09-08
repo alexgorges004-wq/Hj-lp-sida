@@ -82,13 +82,18 @@
       }
 
       const btn = document.getElementById("v2InviteSave");
-      btn.disabled = true; btn.textContent = "Sparar…"; error.textContent = "";
+      btn.disabled = true;
+      btn.textContent = "Sparar…";
+      error.textContent = "";
+
       const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
       if (updateError) {
         error.textContent = updateError.message || "Kunde inte spara lösenordet.";
-        btn.disabled = false; btn.textContent = "Skapa lösenord";
+        btn.disabled = false;
+        btn.textContent = "Skapa lösenord";
         return;
       }
+
       document.getElementById("v2InviteForm").classList.add("hidden");
       document.getElementById("v2InviteText").textContent = "Kontot är aktiverat.";
       document.getElementById("v2InviteDone").classList.remove("hidden");
@@ -144,70 +149,4 @@
       S.supa.auth.onAuthStateChange((event, session) => setTimeout(() => showInviteIfReady(session, event), 0));
     }
   }
-
-  async function adminApi(action, payload = {}) {
-    const { data: { session } } = await S.supa.auth.getSession();
-    if (!session?.access_token) throw new Error("Du är inte inloggad.");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    let r;
-    try {
-      r = await fetch("/.netlify/functions/admin-users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action, ...payload }),
-        signal: controller.signal
-      });
-    } catch (error) {
-      if (error?.name === "AbortError") throw new Error("Adminservern svarade inte inom 10 sekunder.");
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-    let body = {};
-    const contentType = String(r.headers.get("content-type") || "");
-    if (contentType.includes("application/json")) {
-      try { body = await r.json(); } catch {}
-    }
-    if (!r.ok) throw new Error(body.error || `Serverfel ${r.status} från Netlify.`);
-    return body;
-  }
-
-  async function refreshAdmins() {
-    const list = document.getElementById("v2AdminsList");
-    if (!list) return;
-    const r = await adminApi("list");
-    const users = r.users || [];
-    list.innerHTML = users.length ? users.map(x => `<div class="v2-list-item"><div><strong>${S.esc(x.email || x.id)}</strong><small>${S.esc(x.id)}</small></div><div class="v2-admin-actions"><select data-admin-role="${S.esc(x.id)}"><option value="admin" ${x.role === "admin" ? "selected" : ""}>Admin</option><option value="owner" ${x.role === "owner" ? "selected" : ""}>Ägare</option></select><button class="btn small danger" data-remove-admin="${S.esc(x.id)}" type="button">Ta bort</button></div></div>`).join("") : '<div class="trash-empty">Inga admins hittades.</div>';
-  }
-
-  function enhanceInviteButton() {
-    const btn = document.getElementById("v2AdminInvite");
-    if (!btn || btn.dataset.inviteV2 === "1") return;
-    btn.dataset.inviteV2 = "1";
-    btn.onclick = async () => {
-      const emailInput = document.getElementById("v2AdminEmail");
-      const email = emailInput?.value.trim() || "";
-      if (!email) return toast("Skriv en e-postadress.");
-      const oldText = btn.textContent;
-      btn.disabled = true; btn.textContent = "Skickar…";
-      try {
-        const r = await adminApi("invite", { email });
-        if (emailInput) emailInput.value = "";
-        if (r.setupSent && r.invited === false) toast("Nytt lösenordsmejl skickat till adminen.");
-        else if (r.invited === true) toast("Admininbjudan skickad.");
-        else toast("Användaren har redan adminbehörighet.");
-        refreshAdmins().catch((error) => console.warn("Kunde inte uppdatera adminlistan", error));
-      } catch (e) {
-        toast(e.message || "Kunde inte bjuda in admin.");
-      } finally {
-        btn.disabled = false; btn.textContent = oldText;
-      }
-    };
-  }
-
-  const observer = new MutationObserver(enhanceInviteButton);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", enhanceInviteButton);
-  else enhanceInviteButton();
 })();
