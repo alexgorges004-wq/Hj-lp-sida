@@ -81,13 +81,13 @@
   style.textContent = `
     .v2-resizable{resize:none!important;overflow:visible!important;max-width:100%!important}
     .home-text-block.v2-layout-item:has(.home-text-controls) .home-text-controls{position:absolute!important;top:10px!important;right:10px!important;margin:0!important;z-index:6!important}
-    .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:44px}
+    .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:0!important}
     .v2-height-resize-handle{position:absolute;right:6px;bottom:6px;width:18px;height:18px;border-right:3px solid rgba(255,255,255,.48);border-bottom:3px solid rgba(255,255,255,.48);border-radius:0 0 5px 0;cursor:nwse-resize;z-index:7;touch-action:none}
     .v2-height-resize-handle:hover{border-color:#fff}
     @media(max-width:720px){
       .v2-height-resize-handle{display:none!important}
       .home-text-block.v2-layout-item:has(.home-text-controls) .home-text-controls{position:static!important;margin:-5px -5px 12px!important}
-      .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:0}
+      .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:0!important}
       .home-text-block[data-home-text]{width:100%!important;min-height:0!important}
     }
   `;
@@ -122,11 +122,11 @@
     const dy = event.clientY - resize.startY;
     const boxWidth = Math.max(1, resize.box.getBoundingClientRect().width);
     const widthPx = Math.max(boxWidth * 0.30, Math.min(boxWidth, resize.startWidth + dx));
-    const heightPx = Math.max(54, Math.min(700, resize.startHeight + dy));
+    const heightPx = Math.max(0, Math.min(700, resize.startHeight + dy));
 
     resize.node.style.width = `${Math.max(30, Math.min(100, widthPx / boxWidth * 100))}%`;
-    resize.node.style.height = "auto";
-    resize.node.style.minHeight = `${Math.round(heightPx)}px`;
+    resize.node.style.minHeight = "0px";
+    resize.node.style.height = heightPx ? `${Math.round(heightPx)}px` : "auto";
   }, true);
 
   const clearResize = (event) => {
