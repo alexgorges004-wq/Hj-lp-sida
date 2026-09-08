@@ -23,6 +23,7 @@ const staticFiles = [
   "multi-image-late-loader.js",
   "media-editor-click-fix.js",
   "multi-select-image-fix.js",
+  "guide-text-size.js",
   "favicon.ico"
 ];
 
