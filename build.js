@@ -21,6 +21,7 @@ const staticFiles = [
   "step-order-fix.js",
   "multi-image-fix.js",
   "media-editor-click-fix.js",
+  "multi-select-image-fix.js",
   "favicon.ico"
 ];
 
