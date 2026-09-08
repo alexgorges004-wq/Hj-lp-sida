@@ -19,6 +19,7 @@
     const preset = presets[block.style] || presets.plain;
     const width = Math.max(30, Math.min(100, Number(block.widthPct) || 100));
     const minHeight = Math.max(0, Math.min(700, Number(block.minHeight) || 0));
+    const textAlign = ["left", "center", "right"].includes(block.textAlign) ? block.textAlign : "left";
 
     node.style.width = `${width}%`;
     node.style.maxWidth = "100%";
@@ -27,7 +28,7 @@
     node.style.overflow = "visible";
     node.style.background = block.bg || preset.bg;
     node.style.color = block.color || preset.color;
-    node.style.textAlign = ["left", "center", "right"].includes(block.textAlign) ? block.textAlign : "left";
+    node.style.textAlign = textAlign;
     node.style.fontFamily = block.fontFamily === "serif"
       ? "Georgia,serif"
       : block.fontFamily === "mono"
@@ -45,10 +46,12 @@
     if (title) {
       title.style.fontSize = `${Math.max(16, Math.min(64, Number(block.titleSize) || 27))}px`;
       title.style.color = block.color || preset.color;
+      title.style.textAlign = textAlign;
     }
     if (body) {
       body.style.fontSize = `${Math.max(11, Math.min(32, Number(block.bodySize) || 15))}px`;
       body.style.color = block.color || preset.color;
+      body.style.textAlign = textAlign;
     }
 
     const oldHandle = node.querySelector(".v2-height-resize-handle");
@@ -78,13 +81,13 @@
   style.textContent = `
     .v2-resizable{resize:none!important;overflow:visible!important;max-width:100%!important}
     .home-text-block.v2-layout-item:has(.home-text-controls) .home-text-controls{position:absolute!important;top:10px!important;right:10px!important;margin:0!important;z-index:6!important}
-    .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:190px}
+    .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:44px}
     .v2-height-resize-handle{position:absolute;right:6px;bottom:6px;width:18px;height:18px;border-right:3px solid rgba(255,255,255,.48);border-bottom:3px solid rgba(255,255,255,.48);border-radius:0 0 5px 0;cursor:nwse-resize;z-index:7;touch-action:none}
     .v2-height-resize-handle:hover{border-color:#fff}
     @media(max-width:720px){
       .v2-height-resize-handle{display:none!important}
       .home-text-block.v2-layout-item:has(.home-text-controls) .home-text-controls{position:static!important;margin:-5px -5px 12px!important}
-      .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0}
+      .home-text-block.v2-layout-item:has(.home-text-controls) h2{padding-right:0!important;padding-top:0}
       .home-text-block[data-home-text]{width:100%!important;min-height:0!important}
     }
   `;
