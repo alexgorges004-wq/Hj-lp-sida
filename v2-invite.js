@@ -3,9 +3,37 @@
   if (!S?.supa) return;
 
   const sitePath = window.location.pathname || "/";
-  const query = new URLSearchParams(window.location.search);
+  const initialSearch = String(window.__initialSearch ?? window.location.search ?? "");
+  const query = new URLSearchParams(initialSearch);
   const initialHash = String(window.__initialHash || window.location.hash || "");
-  const inviteFlow = query.get("setup") === "admin" || /(?:^|[&#])type=(invite|recovery)(?:&|$)/i.test(initialHash);
+  const hashParams = new URLSearchParams(initialHash.replace(/^#/, ""));
+
+  const setupRequested = query.get("setup") === "admin";
+  const callbackType = String(hashParams.get("type") || query.get("type") || "").toLowerCase();
+  const accessToken = hashParams.get("access_token") || "";
+  const refreshToken = hashParams.get("refresh_token") || "";
+  const callbackCode = query.get("code") || "";
+  const urlError = hashParams.get("error_description") || query.get("error_description") || "";
+
+  const tokenCallback = setupRequested && ["invite", "recovery"].includes(callbackType) && Boolean(accessToken && refreshToken);
+  const codeCallback = setupRequested && Boolean(callbackCode);
+  const inviteFlow = setupRequested;
+
+  function jwtSubject(token) {
+    try {
+      const part = String(token || "").split(".")[1];
+      if (!part) return "";
+      const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+      return String(JSON.parse(atob(padded))?.sub || "");
+    } catch {
+      return "";
+    }
+  }
+
+  const expectedUserId = tokenCallback ? jwtSubject(accessToken) : "";
+  let validatedUserId = "";
+  let callbackConsumed = false;
 
   const css = document.createElement("style");
   css.textContent = `
@@ -19,14 +47,10 @@
   `;
   document.head.appendChild(css);
 
-  function inviteErrorFromUrl() {
-    const hp = new URLSearchParams(initialHash.replace(/^#/, ""));
-    return hp.get("error_description") || query.get("error_description") || "";
-  }
-
   function ensureInviteScreen() {
     let screen = document.getElementById("v2InviteScreen");
     if (screen) return screen;
+
     screen = document.createElement("div");
     screen.id = "v2InviteScreen";
     screen.className = "v2-invite-screen";
@@ -53,98 +77,107 @@
       const error = document.getElementById("v2InviteError");
       if (p1.length < 8) { error.textContent = "Lösenordet måste vara minst 8 tecken."; return; }
       if (p1 !== p2) { error.textContent = "Lösenorden matchar inte."; return; }
-      const btn = document.getElementById("v2InviteSave");
-      btn.disabled = true; btn.textContent = "Sparar…"; error.textContent = "";
-      const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
-      if (updateError) {
-        error.textContent = updateError.message || "Kunde inte spara lösenordet.";
-        btn.disabled = false; btn.textContent = "Skapa lösenord";
+
+      const { data: { session } } = await S.supa.auth.getSession();
+      if (!validatedUserId || !session?.user || session.user.id !== validatedUserId) {
+        error.textContent = "Inbjudan matchar inte den aktiva sessionen. Öppna länken igen eller be ägaren skicka en ny.";
         return;
       }
-      document.getElementById("v2InviteForm").classList.add("hidden");
-      document.getElementById("v2InviteText").textContent = "Kontot är aktiverat.";
-      document.getElementById("v2InviteDone").classList.remove("hidden");
+
+      const btn = document.getElementById("v2InviteSave");
+      btn.disabled = true;
+      btn.textContent = "Sparar…";
+      error.textContent = "";
+
+      try {
+        const { error: updateError } = await S.supa.auth.updateUser({ password: p1 });
+        if (updateError) throw updateError;
+
+        document.getElementById("v2InvitePassword").value = "";
+        document.getElementById("v2InvitePassword2").value = "";
+        document.getElementById("v2InviteForm").classList.add("hidden");
+        document.getElementById("v2InviteText").textContent = "Kontot är aktiverat.";
+        document.getElementById("v2InviteDone").classList.remove("hidden");
+        history.replaceState(null, "", `${sitePath}#admin`);
+      } catch (updateError) {
+        error.textContent = updateError?.message || "Kunde inte spara lösenordet.";
+        btn.disabled = false;
+        btn.textContent = "Skapa lösenord";
+      }
     };
 
     document.getElementById("v2InviteContinue").onclick = () => {
       window.location.replace(`${window.location.origin}${sitePath}#admin`);
     };
+
     return screen;
   }
 
-  async function showInviteIfReady(session) {
-    if (!inviteFlow) return;
+  function showError(message) {
     ensureInviteScreen();
-    const text = document.getElementById("v2InviteText");
     const form = document.getElementById("v2InviteForm");
-    const urlError = inviteErrorFromUrl();
-    if (urlError) {
-      text.textContent = "Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.";
-      return;
-    }
+    if (form) form.classList.add("hidden");
+    const text = document.getElementById("v2InviteText");
+    if (text) text.textContent = message;
+  }
+
+  function showForm(session) {
     if (!session?.user) {
-      text.textContent = "Verifierar länken…";
+      showError("Kunde inte verifiera adminkontot. Be ägaren skicka en ny inbjudan.");
       return;
     }
-    text.textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
-    form.classList.remove("hidden");
-  }
+    if (expectedUserId && session.user.id !== expectedUserId) {
+      showError("Inbjudan matchar inte adminkontot. Be ägaren skicka en ny inbjudan.");
+      return;
+    }
 
-  if (inviteFlow) {
+    validatedUserId = session.user.id;
     ensureInviteScreen();
-    S.supa.auth.getSession().then(({ data }) => showInviteIfReady(data?.session));
-    S.supa.auth.onAuthStateChange((_event, session) => setTimeout(() => showInviteIfReady(session), 0));
+    document.getElementById("v2InviteText").textContent = `Välj ett lösenord för ${session.user.email || "ditt adminkonto"}.`;
+    document.getElementById("v2InviteForm").classList.remove("hidden");
   }
 
-  async function adminApi(action, payload = {}) {
-    const { data: { session } } = await S.supa.auth.getSession();
-    if (!session?.access_token) throw new Error("Du är inte inloggad.");
-    const r = await fetch("/.netlify/functions/admin-users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ action, ...payload })
-    });
-    let body = {};
-    try { body = await r.json(); } catch {}
-    if (!r.ok) throw new Error(body.error || "Adminfunktionen kunde inte köras.");
-    return body;
-  }
+  async function establishInviteSession() {
+    if (!inviteFlow || callbackConsumed) return;
+    callbackConsumed = true;
+    ensureInviteScreen();
 
-  async function refreshAdmins() {
-    const list = document.getElementById("v2AdminsList");
-    if (!list) return;
-    const r = await adminApi("list");
-    const users = r.users || [];
-    list.innerHTML = users.length ? users.map(x => `<div class="v2-list-item"><div><strong>${S.esc(x.email || x.id)}</strong><small>${S.esc(x.id)}</small></div><div class="v2-admin-actions"><select data-admin-role="${S.esc(x.id)}"><option value="admin" ${x.role === "admin" ? "selected" : ""}>Admin</option><option value="owner" ${x.role === "owner" ? "selected" : ""}>Ägare</option></select><button class="btn small danger" data-remove-admin="${S.esc(x.id)}" type="button">Ta bort</button></div></div>`).join("") : '<div class="trash-empty">Inga admins hittades.</div>';
-  }
+    if (urlError) {
+      showError("Länken är ogiltig eller har gått ut. Be ägaren skicka ett nytt lösenordsmejl.");
+      return;
+    }
 
-  function enhanceInviteButton() {
-    const btn = document.getElementById("v2AdminInvite");
-    if (!btn || btn.dataset.inviteV2 === "1") return;
-    btn.dataset.inviteV2 = "1";
-    btn.onclick = async () => {
-      const emailInput = document.getElementById("v2AdminEmail");
-      const email = emailInput?.value.trim() || "";
-      if (!email) return toast("Skriv en e-postadress.");
-      const oldText = btn.textContent;
-      btn.disabled = true; btn.textContent = "Skickar…";
-      try {
-        const r = await adminApi("invite", { email });
-        if (emailInput) emailInput.value = "";
-        await refreshAdmins();
-        if (r.setupSent && r.invited === false) toast("Nytt lösenordsmejl skickat till adminen.");
-        else if (r.invited === true) toast("Admininbjudan skickad.");
-        else toast("Användaren har redan adminbehörighet.");
-      } catch (e) {
-        toast(e.message || "Kunde inte bjuda in admin.");
-      } finally {
-        btn.disabled = false; btn.textContent = oldText;
+    if (!tokenCallback && !codeCallback) {
+      showError("Den här sidan kan bara öppnas från en giltig admininbjudan eller lösenordslänk.");
+      return;
+    }
+
+    try {
+      let session = null;
+
+      if (tokenCallback) {
+        const { data, error } = await S.supa.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        if (error) throw error;
+        session = data?.session || null;
+      } else {
+        const { data, error } = await S.supa.auth.exchangeCodeForSession(callbackCode);
+        if (error) throw error;
+        session = data?.session || null;
       }
-    };
+
+      if (!session?.user) throw new Error("Ingen giltig session skapades från länken.");
+      if (expectedUserId && session.user.id !== expectedUserId) throw new Error("Länken hör till ett annat konto.");
+
+      history.replaceState(null, "", `${sitePath}?setup=admin`);
+      showForm(session);
+    } catch (error) {
+      console.error("Kunde inte verifiera adminlänken", error);
+      showError("Länken är ogiltig eller har gått ut. Be ägaren skicka en ny inbjudan.");
+    }
   }
 
-  const observer = new MutationObserver(enhanceInviteButton);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", enhanceInviteButton);
-  else enhanceInviteButton();
+  if (inviteFlow) establishInviteSession();
 })();

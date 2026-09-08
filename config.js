@@ -5,11 +5,23 @@ window.LIVESTREAM_SUPABASE = {
   key: "sb_publishable_dgn8kMvfYxmq48nBhvXfnA_nSpYEeyF"
 };
 
-window.addEventListener("load", async () => {
-  const cfg = window.LIVESTREAM_SUPABASE;
-  if (!cfg?.url || !cfg?.key || !window.supabase) return;
+// Preserve the original query before the base router can replace the URL.
+// PKCE invite/recovery callbacks may carry their one-time code in the query.
+if (window.__initialSearch === undefined) window.__initialSearch = window.location.search;
 
-  // Dark, simpler UI + screenshot styles. Injected here so Netlify only needs this file update.
+// Create exactly one browser client. Auth callbacks are handled explicitly in
+// v2-invite.js so an old session can never consume somebody else's invite link.
+if (!window.__livestreamSupabase && window.supabase) {
+  const cfg = window.LIVESTREAM_SUPABASE;
+  window.__livestreamSupabase = window.supabase.createClient(cfg.url, cfg.key, {
+    auth: { detectSessionInUrl: false }
+  });
+}
+
+window.addEventListener("load", async () => {
+  const supa = window.__livestreamSupabase;
+  if (!supa) return;
+
   const style = document.createElement("style");
   style.textContent = `
     :root{--bg:#07101d!important;--surface:#0d1828!important;--text:#f3f6fb!important;--muted:#9cacc1!important;--line:#23344c!important;--primary:#7c5cff!important;--soft:#17263a!important;--shadow:0 18px 50px rgba(0,0,0,.28)!important}
@@ -34,25 +46,11 @@ window.addEventListener("load", async () => {
   `;
   document.head.appendChild(style);
 
-  const supa = window.supabase.createClient(cfg.url, cfg.key);
-  const BUCKET = "guide-images";
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-
   async function isAdmin() {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return false;
-    const { data: row, error } = await supa.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
-    return !error && !!row;
-  }
-
-  async function refreshFromCloud() {
-    const { data: row, error } = await supa.from("guide_data").select("content").eq("id", "main").maybeSingle();
-    if (!error && row?.content) {
-      data = row.content;
-      renderHome();
-      if (currentPage) renderPage(currentPage);
-    }
+    const { data: row, error } = await supa.from("admins").select("role").eq("user_id", user.id).maybeSingle();
+    return !error && !!row && (row.role === "admin" || row.role === "owner");
   }
 
   updateAdminView = function () {
@@ -63,32 +61,34 @@ window.addEventListener("load", async () => {
     if (document.getElementById("loginDemo")) document.getElementById("loginDemo").classList.add("hidden");
   };
 
-  saveContent = async function () {
-    if (!admin) return;
-    const { error } = await supa.from("guide_data").upsert({ id: "main", content: data, updated_at: new Date().toISOString() });
-    if (error) throw new Error(error.message);
-    if (document.getElementById("saveDot")) document.getElementById("saveDot").className = "dot good";
-    if (document.getElementById("saveState")) document.getElementById("saveState").textContent = "Sparat online";
-    toast("Sparat online");
-  };
+  // V2 owns all cloud writes. This removes the old unconditional upsert path.
+  if (window.LH2?.save) saveContent = window.LH2.save;
 
-  // Render screenshots directly under the relevant step.
   renderPage = function (key) {
     const p = data.pages[key];
     if (!p) return showHome();
     currentPage = key;
     document.getElementById("pageKicker").textContent = p.kicker || "";
-    document.getElementById("pageTitle").textContent = p.title;
+    document.getElementById("pageTitle").textContent = p.title || "";
     document.getElementById("pageIntro").textContent = p.intro || "";
     document.getElementById("editPageBtn").classList.toggle("hidden", !admin);
+
     let html = '<div class="steps">';
     (p.steps || []).forEach((step, i) => {
-      const shot = step.imageUrl ? `<figure class="guide-shot-wrap"><a class="guide-shot-link" href="${esc(step.imageUrl)}" target="_blank" rel="noopener"><img class="guide-shot" src="${esc(step.imageUrl)}" alt="${esc(step.imageCaption || ('Screenshot för ' + (step.title || 'detta steg')))}" loading="lazy"><span class="zoom-hint">Klicka för större bild</span></a>${step.imageCaption ? `<figcaption>${esc(step.imageCaption)}</figcaption>` : ""}</figure>` : "";
-      const video = step.videoUrl ? `<figure class="guide-video-wrap"><video class="guide-video" controls preload="metadata" playsinline src="${esc(step.videoUrl)}"></video>${step.videoCaption ? `<figcaption>${esc(step.videoCaption)}</figcaption>` : ""}</figure>` : "";
-      html += `<div class="step"><div class="num">${i + 1}</div><div class="stepcontent"><h3>${esc(step.title)}</h3><p>${esc(step.text)}</p>${shot}${video}</div></div>`;
+      const shot = step.imageUrl
+        ? `<figure class="guide-shot-wrap"><a class="guide-shot-link" href="${esc(step.imageUrl)}" target="_blank" rel="noopener"><img class="guide-shot" src="${esc(step.imageUrl)}" alt="${esc(step.imageCaption || ('Screenshot för ' + (step.title || 'detta steg')))}" loading="lazy"><span class="zoom-hint">Klicka för större bild</span></a>${step.imageCaption ? `<figcaption>${esc(step.imageCaption)}</figcaption>` : ""}</figure>`
+        : "";
+      const video = step.videoUrl
+        ? `<figure class="guide-video-wrap"><video class="guide-video" controls preload="metadata" playsinline src="${esc(step.videoUrl)}"></video>${step.videoCaption ? `<figcaption>${esc(step.videoCaption)}</figcaption>` : ""}</figure>`
+        : "";
+      html += `<div class="step"><div class="num">${i + 1}</div><div class="stepcontent"><h3>${esc(step.title || "")}</h3><p>${esc(step.text || "")}</p>${shot}${video}</div></div>`;
     });
     html += "</div>";
-    if (p.note) html += `<div class="callout ${p.noteType || 'info'}"><strong>Viktigt</strong><p>${esc(p.note)}</p></div>`;
+
+    if (p.note) {
+      const noteType = ["info", "good", "warn", "danger"].includes(p.noteType) ? p.noteType : "info";
+      html += `<div class="callout ${noteType}"><strong>Viktigt</strong><p>${esc(p.note)}</p></div>`;
+    }
     document.getElementById("pageBody").innerHTML = html;
   };
 
@@ -100,10 +100,9 @@ window.addEventListener("load", async () => {
 
   renderStepEditor = function (steps) {
     const stepEditor = document.getElementById("stepEditor");
-    stepEditor.innerHTML = (steps || []).map((s, i) => editorMarkup(s, i)).join("");
+    if (!stepEditor) return;
+    stepEditor.innerHTML = (steps || []).map((step, i) => editorMarkup(step, i)).join("");
 
-    // Bind media remove buttons directly after each render. This is more reliable
-    // than depending only on delegated document click handling inside the modal.
     stepEditor.querySelectorAll("[data-remove-image]").forEach((button) => {
       button.onclick = (event) => {
         event.preventDefault();
@@ -117,6 +116,7 @@ window.addEventListener("load", async () => {
         if (fileInput) fileInput.value = "";
         const label = editor.querySelector(".selected-file-name");
         if (label) label.textContent = "Screenshot tas bort när du sparar.";
+        window.LH2?.markDirty?.();
         toast("Screenshot markerad för borttagning – tryck Spara.");
       };
     });
@@ -134,6 +134,7 @@ window.addEventListener("load", async () => {
         if (fileInput) fileInput.value = "";
         const label = editor.querySelector(".selected-video-file-name");
         if (label) label.textContent = "Skärminspelningen tas bort när du sparar.";
+        window.LH2?.markDirty?.();
         toast("Skärminspelning markerad för borttagning – tryck Spara.");
       };
     });
@@ -142,8 +143,8 @@ window.addEventListener("load", async () => {
   collectSteps = function () {
     return [...document.querySelectorAll("#stepEditor .stepedit")].map((el) => {
       const step = {
-        title: el.querySelector(".stepTitle").value.trim(),
-        text: el.querySelector(".stepText").value.trim()
+        title: el.querySelector(".stepTitle")?.value.trim() || "",
+        text: el.querySelector(".stepText")?.value.trim() || ""
       };
       const imageUrl = el.querySelector(".stepImageUrl")?.value || "";
       const imagePath = el.querySelector(".stepImagePath")?.value || "";
@@ -162,159 +163,28 @@ window.addEventListener("load", async () => {
         if (videoCaption) step.videoCaption = videoCaption;
       }
       return step;
-    }).filter((s) => s.title || s.text || s.imageUrl || s.videoUrl);
+    }).filter((step) => step.title || step.text || step.imageUrl || step.videoUrl);
   };
 
   openEditPage = function (key) {
     editingPageKey = key;
-    const p = data.pages[key];
+    const p = data.pages?.[key];
+    if (!p) return;
     document.getElementById("editPageIcon").value = p.icon || "";
     document.getElementById("editPageKicker").value = p.kicker || "";
     document.getElementById("editPageTitle").value = p.title || "";
     document.getElementById("editPageSummary").value = p.summary || "";
     document.getElementById("editPageIntro").value = p.intro || "";
     document.getElementById("editPageNote").value = p.note || "";
-    document.getElementById("editPageNoteType").value = p.noteType || "info";
+    document.getElementById("editPageNoteType").value = ["info", "good", "warn", "danger"].includes(p.noteType) ? p.noteType : "info";
     renderStepEditor(p.steps || []);
     openModal("editPageModal");
-  };
-
-  function safeFileName(name) {
-    const ext = (name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const stem = name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 45) || "screenshot";
-    return `${stem}.${ext}`;
-  }
-
-  async function deleteOld(path) {
-    if (!path) return;
-    const { error } = await supa.storage.from(BUCKET).remove([path]);
-    if (error) console.warn("Could not remove old screenshot", error);
-  }
-
-  async function uploadScreenshot(file, stepIndex) {
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Screenshot måste vara PNG, JPG eller WebP.");
-    if (file.size > MAX_IMAGE_BYTES) throw new Error("Screenshoten är större än 5 MB.");
-    const uid = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const path = `${editingPageKey}/${Date.now()}-${stepIndex + 1}-${uid}-${safeFileName(file.name)}`;
-    const { error } = await supa.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-    if (error) throw new Error(`Kunde inte ladda upp screenshot: ${error.message}`);
-    const { data: pub } = supa.storage.from(BUCKET).getPublicUrl(path);
-    return { imagePath: path, imageUrl: pub.publicUrl };
-  }
-
-  async function uploadRecording(file, stepIndex) {
-    const ext = (file.name.split(".").pop() || "").toLowerCase();
-    const allowedType = /^(video\/(mp4|webm|quicktime))$/.test(file.type) || ["mp4","webm","mov"].includes(ext);
-    if (!allowedType) throw new Error("Skärminspelningen måste vara MP4, WebM eller MOV.");
-    if (file.size > MAX_VIDEO_BYTES) throw new Error("Skärminspelningen är större än 50 MB.");
-    const uid = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const path = `${editingPageKey}/video-${Date.now()}-${stepIndex + 1}-${uid}-${safeFileName(file.name)}`;
-    const contentType = file.type || (ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4");
-    const { error } = await supa.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false, contentType });
-    if (error) throw new Error(`Kunde inte ladda upp skärminspelning: ${error.message}`);
-    const { data: pub } = supa.storage.from(BUCKET).getPublicUrl(path);
-    return { videoPath: path, videoUrl: pub.publicUrl };
-  }
-
-  async function collectStepsWithUploads() {
-    const out = [];
-    const editors = [...document.querySelectorAll("#stepEditor .stepedit")];
-    for (let i = 0; i < editors.length; i++) {
-      const el = editors[i];
-      const title = el.querySelector(".stepTitle").value.trim();
-      const text = el.querySelector(".stepText").value.trim();
-
-      const imageCaption = el.querySelector(".stepImageCaption").value.trim();
-      const imageFile = el.querySelector(".stepImageFile").files[0];
-      let imageUrl = el.querySelector(".stepImageUrl").value;
-      let imagePath = el.querySelector(".stepImagePath").value;
-
-      const videoCaption = el.querySelector(".stepVideoCaption").value.trim();
-      const videoFile = el.querySelector(".stepVideoFile").files[0];
-      let videoUrl = el.querySelector(".stepVideoUrl").value;
-      let videoPath = el.querySelector(".stepVideoPath").value;
-
-      if (imageFile) {
-        const old = imagePath;
-        const uploaded = await uploadScreenshot(imageFile, i);
-        imageUrl = uploaded.imageUrl;
-        imagePath = uploaded.imagePath;
-        if (old) await deleteOld(old);
-      } else if (el.dataset.removeImage === "1") {
-        if (imagePath) await deleteOld(imagePath);
-        imageUrl = "";
-        imagePath = "";
-      }
-
-      if (videoFile) {
-        const old = videoPath;
-        const uploaded = await uploadRecording(videoFile, i);
-        videoUrl = uploaded.videoUrl;
-        videoPath = uploaded.videoPath;
-        if (old) await deleteOld(old);
-      } else if (el.dataset.removeVideo === "1") {
-        if (videoPath) await deleteOld(videoPath);
-        videoUrl = "";
-        videoPath = "";
-      }
-
-      if (title || text || imageUrl || videoUrl) {
-        const step = { title, text };
-        if (imageUrl) {
-          step.imageUrl = imageUrl;
-          step.imagePath = imagePath;
-          if (imageCaption) step.imageCaption = imageCaption;
-        }
-        if (videoUrl) {
-          step.videoUrl = videoUrl;
-          step.videoPath = videoPath;
-          if (videoCaption) step.videoCaption = videoCaption;
-        }
-        out.push(step);
-      }
-    }
-    return out;
-  }
-
-  // Replace the original add/save actions with screenshot-aware versions.
-  const addStep = document.getElementById("addStepBtn");
-  if (addStep) addStep.onclick = () => {
-    const current = collectSteps();
-    current.push({ title: "Nytt steg", text: "Skriv instruktionen här." });
-    renderStepEditor(current);
-  };
-
-  const savePage = document.getElementById("savePageBtn");
-  if (savePage) savePage.onclick = async () => {
-    savePage.disabled = true;
-    savePage.textContent = "Sparar…";
-    try {
-      const p = data.pages[editingPageKey];
-      p.icon = document.getElementById("editPageIcon").value.trim();
-      p.kicker = document.getElementById("editPageKicker").value.trim();
-      p.title = document.getElementById("editPageTitle").value.trim();
-      p.summary = document.getElementById("editPageSummary").value.trim();
-      p.intro = document.getElementById("editPageIntro").value.trim();
-      p.steps = await collectStepsWithUploads();
-      p.note = document.getElementById("editPageNote").value.trim();
-      p.noteType = document.getElementById("editPageNoteType").value;
-      await saveContent();
-      renderHome();
-      if (currentPage === editingPageKey) renderPage(currentPage);
-      closeModal("editPageModal");
-    } catch (error) {
-      console.error(error);
-      toast(error.message || "Kunde inte spara");
-    } finally {
-      savePage.disabled = false;
-      savePage.textContent = "Spara";
-    }
   };
 
   document.addEventListener("change", (event) => {
     if (event.target.matches(".stepImageFile")) {
       const editor = event.target.closest(".stepedit");
-      const file = event.target.files[0];
+      const file = event.target.files?.[0];
       if (!editor || !file) return;
       editor.dataset.removeImage = "0";
       const label = editor.querySelector(".selected-file-name");
@@ -324,7 +194,7 @@ window.addEventListener("load", async () => {
 
     if (event.target.matches(".stepVideoFile")) {
       const editor = event.target.closest(".stepedit");
-      const file = event.target.files[0];
+      const file = event.target.files?.[0];
       if (!editor || !file) return;
       editor.dataset.removeVideo = "0";
       const label = editor.querySelector(".selected-video-file-name");
@@ -332,36 +202,46 @@ window.addEventListener("load", async () => {
     }
   });
 
-  // Real Supabase login (no demo password).
   const loginBtn = document.getElementById("loginBtn");
   if (loginBtn) loginBtn.onclick = () => { updateAdminView(); openModal("loginModal"); };
 
   const submit = document.getElementById("submitLoginBtn");
   if (submit) submit.onclick = async () => {
-    const email = document.getElementById("loginEmail")?.value.trim();
+    const email = document.getElementById("loginEmail")?.value.trim() || "";
     const password = document.getElementById("loginPassword")?.value || "";
-    const { error } = await supa.auth.signInWithPassword({ email, password });
-    if (error) return toast(error.message);
-    if (!(await isAdmin())) {
-      await supa.auth.signOut();
-      return toast("Kontot har inte adminbehörighet");
+    if (!email || !password) return toast("Fyll i e-post och lösenord.");
+
+    submit.disabled = true;
+    const previousText = submit.textContent;
+    submit.textContent = "Loggar in…";
+    try {
+      const { error } = await supa.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (!(await isAdmin())) {
+        await supa.auth.signOut();
+        throw new Error("Kontot har inte adminbehörighet.");
+      }
+      if (window.LH2?.refreshAdminState) await window.LH2.refreshAdminState();
+      else setAdmin(true);
+      closeModal("loginModal");
+      updateAdminView();
+      toast("Inloggad");
+    } catch (error) {
+      toast(error?.message || "Inloggningen misslyckades.");
+    } finally {
+      submit.disabled = false;
+      submit.textContent = previousText;
     }
-    setAdmin(true);
-    closeModal("loginModal");
-    updateAdminView();
-    toast("Inloggad");
   };
 
   const logout = document.getElementById("logoutBtn");
   if (logout) logout.onclick = async () => {
     await supa.auth.signOut();
-    setAdmin(false);
+    if (window.LH2?.refreshAdminState) await window.LH2.refreshAdminState();
+    else setAdmin(false);
     showHome();
     toast("Utloggad");
   };
 
-  await refreshFromCloud();
-  const { data: { session } } = await supa.auth.getSession();
-  if (session && await isAdmin()) setAdmin(true);
   updateAdminView();
 });

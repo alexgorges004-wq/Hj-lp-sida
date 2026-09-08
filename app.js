@@ -16,69 +16,68 @@ const DEFAULT_DATA={
 
 let data=JSON.parse(JSON.stringify(DEFAULT_DATA));
 let currentPage=null,admin=false,editingPageKey=null;
-let appwriteReady=false,client=null,account=null,tablesDB=null,currentUser=null;
 const $=id=>document.getElementById(id);
-const CFG=window.LIVESTREAM_APPWRITE||{};
-const hasConfig=["endpoint","projectId","databaseId","tableId","rowId"].every(k=>CFG[k]&&!String(CFG[k]).includes("YOUR_"));
 
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function toast(msg){const t=$("toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.add("hidden"),2300)}
-function openModal(id){$(id).classList.remove("hidden")}
-function closeModal(id){$(id).classList.add("hidden")}
+function toast(msg){const t=$("toast");if(!t)return;t.textContent=msg;t.classList.remove("hidden");clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.add("hidden"),2300)}
+function openModal(id){$(id)?.classList.remove("hidden")}
+function closeModal(id){$(id)?.classList.add("hidden")}
 
 function renderHeader(){
-  $("brandName").textContent=data.settings.brandName;$("brandSub").textContent=data.settings.brandSub;
-  $("heroTitle").textContent=data.settings.heroTitle;$("heroText").textContent=data.settings.heroText;
+  if(!data.settings||typeof data.settings!=="object")data.settings={};
+  $("brandName").textContent=data.settings.brandName||"Jungfru Maria Kyrkan";
+  $("brandSub").textContent=data.settings.brandSub||"Livestreamhjälp";
+  $("heroTitle").textContent=data.settings.heroTitle||"Vad behöver du hjälp med?";
+  $("heroText").textContent=data.settings.heroText||"";
 }
-function pageCard(k,p,main=false){return `<div class="${main?'card':'quickitem'}" data-page="${k}">${main?`<div class="ico">${esc(p.icon)}</div><h2>${esc(p.title)}</h2><p>${esc(p.summary)}</p><span class="more">Öppna guide →</span>`:`<div><strong>${esc(p.icon)} ${esc(p.title)}</strong><small>${esc(p.summary)}</small></div><div class="arr">›</div>`}${admin?`<button class="editfab" data-edit="${k}">✎</button>`:""}</div>`}
+function pageCard(k,p,main=false){return `<div class="${main?'card':'quickitem'}" data-page="${esc(k)}">${main?`<div class="ico">${esc(p.icon||"•")}</div><h2>${esc(p.title||"Namnlös guide")}</h2><p>${esc(p.summary||"")}</p><span class="more">Öppna guide →</span>`:`<div><strong>${esc(p.icon||"•")} ${esc(p.title||"Namnlös guide")}</strong><small>${esc(p.summary||"")}</small></div><div class="arr">›</div>`}${admin?`<button class="editfab" data-edit="${esc(k)}" type="button">✎</button>`:""}</div>`}
 function renderHome(){
-  renderHeader();const e=Object.entries(data.pages);
+  renderHeader();const e=Object.entries(data.pages||{});
   $("mainCards").innerHTML=e.filter(([,p])=>p.group==="main").map(([k,p])=>pageCard(k,p,true)).join("");
   $("troubleCards").innerHTML=e.filter(([,p])=>p.group==="trouble").map(([k,p])=>pageCard(k,p)).join("");
   $("otherCards").innerHTML=e.filter(([,p])=>p.group==="other").map(([k,p])=>pageCard(k,p)).join("");
   $("editSiteBtn").classList.toggle("hidden",!admin);
 }
 function renderPage(k){
-  const p=data.pages[k];if(!p)return showHome();currentPage=k;
-  $("pageKicker").textContent=p.kicker||"";$("pageTitle").textContent=p.title;$("pageIntro").textContent=p.intro||"";
+  const p=data.pages?.[k];if(!p)return showHome();currentPage=k;
+  $("pageKicker").textContent=p.kicker||"";$("pageTitle").textContent=p.title||"";$("pageIntro").textContent=p.intro||"";
   $("editPageBtn").classList.toggle("hidden",!admin);
-  let h='<div class="steps">';(p.steps||[]).forEach((s,i)=>h+=`<div class="step"><div class="num">${i+1}</div><div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div></div>`);h+='</div>';
-  if(p.note)h+=`<div class="callout ${p.noteType||'info'}"><strong>Viktigt</strong><p>${esc(p.note)}</p></div>`;$("pageBody").innerHTML=h;
+  let h='<div class="steps">';(p.steps||[]).forEach((s,i)=>h+=`<div class="step"><div class="num">${i+1}</div><div><h3>${esc(s.title||"")}</h3><p>${esc(s.text||"")}</p></div></div>`);h+='</div>';
+  if(p.note){const type=["info","good","warn","danger"].includes(p.noteType)?p.noteType:"info";h+=`<div class="callout ${type}"><strong>Viktigt</strong><p>${esc(p.note)}</p></div>`}$("pageBody").innerHTML=h;
 }
 function showHome(){currentPage=null;$("homeView").classList.remove("hidden");$("pageView").classList.add("hidden");$("adminView").classList.add("hidden");history.replaceState(null,"","#home");window.scrollTo(0,0)}
-function showPage(k){renderPage(k);$("homeView").classList.add("hidden");$("adminView").classList.add("hidden");$("pageView").classList.remove("hidden");history.replaceState(null,"","#"+k);window.scrollTo(0,0)}
+function showPage(k){renderPage(k);$("homeView").classList.add("hidden");$("adminView").classList.add("hidden");$("pageView").classList.remove("hidden");history.replaceState(null,"","#"+encodeURIComponent(k));window.scrollTo(0,0)}
 function showAdmin(){$("homeView").classList.add("hidden");$("pageView").classList.add("hidden");$("adminView").classList.remove("hidden");updateAdminView();history.replaceState(null,"","#admin");window.scrollTo(0,0)}
-function setAdmin(v){admin=v;$("adminBar").classList.toggle("hidden",!v);$("adminDashboardBtn").classList.toggle("hidden",!v);$("logoutBtn").classList.toggle("hidden",!v);$("loginBtn").classList.toggle("hidden",v);renderHome();if(currentPage)renderPage(currentPage)}
+function setAdmin(v){admin=!!v;$("adminBar").classList.toggle("hidden",!admin);$("adminDashboardBtn").classList.toggle("hidden",!admin);$("logoutBtn").classList.toggle("hidden",!admin);$("loginBtn").classList.toggle("hidden",admin);renderHome();if(currentPage)renderPage(currentPage)}
 
-function readLocal(){const s=localStorage.getItem("livestream_v6_demo_content");if(s)try{data=JSON.parse(s)}catch{}}
-function writeLocal(){localStorage.setItem("livestream_v6_demo_content",JSON.stringify(data))}
-
-async function initAppwrite(){
-  $("setupBar").classList.toggle("hidden",hasConfig);$("realLogin").classList.toggle("hidden",!hasConfig);$("demoLogin").classList.toggle("hidden",hasConfig);
-  if(!hasConfig){readLocal();renderHome();updateAdminView();return}
-  try{
-    client=new Appwrite.Client().setEndpoint(CFG.endpoint).setProject(CFG.projectId);account=new Appwrite.Account(client);tablesDB=new Appwrite.TablesDB(client);appwriteReady=true;
-    try{const row=await tablesDB.getRow({databaseId:CFG.databaseId,tableId:CFG.tableId,rowId:CFG.rowId});if(row&&row.content)data=JSON.parse(row.content)}catch(e){console.warn(e)}
-    renderHome();try{currentUser=await account.get();setAdmin(true)}catch{currentUser=null;setAdmin(false)}updateAdminView();
-  }catch(e){console.error(e);appwriteReady=false;$("setupBar").classList.remove("hidden");updateAdminView()}
+async function saveContent(){throw new Error("Supabase har inte startat ännu. Försök igen om ett ögonblick.")}
+function updateAdminView(){
+  $("adminModeText").textContent="Supabase Auth";
+  $("storageModeText").textContent="Supabase + media";
+  $("backendModeText").textContent="Ansluten";
+  const user=window.LH2?.state?.user;
+  $("adminUserText").textContent=user?.email||"–";
 }
-async function saveContent(){
-  if(appwriteReady&&admin){try{await tablesDB.upsertRow({databaseId:CFG.databaseId,tableId:CFG.tableId,rowId:CFG.rowId,data:{content:JSON.stringify(data)}});$("saveDot").className="dot good";$("saveState").textContent="Sparat online";toast("Sparat online");return}catch(e){toast("Kunde inte spara: "+(e.message||"okänt fel"));return}}
-  writeLocal();$("saveState").textContent="Sparat lokalt";toast("Sparat lokalt i demo-läge");
-}
-function updateAdminView(){$("adminModeText").textContent=hasConfig?"Appwrite Auth":"Demo-admin";$("storageModeText").textContent=hasConfig?"Appwrite TablesDB":"Den här webbläsaren";$("backendModeText").textContent=appwriteReady?"Ansluten":"Inte ansluten";$("adminUserText").textContent=currentUser?`${currentUser.name||"Admin"} · ${currentUser.email}`:"–"}
 
-function openEditSite(){$("editBrandName").value=data.settings.brandName;$("editBrandSub").value=data.settings.brandSub;$("editHeroTitle").value=data.settings.heroTitle;$("editHeroText").value=data.settings.heroText;openModal("editSiteModal")}
-function openEditPage(k){editingPageKey=k;const p=data.pages[k];$("editPageIcon").value=p.icon||"";$("editPageKicker").value=p.kicker||"";$("editPageTitle").value=p.title||"";$("editPageSummary").value=p.summary||"";$("editPageIntro").value=p.intro||"";$("editPageNote").value=p.note||"";$("editPageNoteType").value=p.noteType||"info";renderStepEditor(p.steps||[]);openModal("editPageModal")}
-function renderStepEditor(st){$("stepEditor").innerHTML=st.map((s,i)=>`<div class="stepedit"><div class="stepeditbar"><strong>Steg ${i+1}</strong><button class="btn small danger" data-remove-step="${i}">Ta bort</button></div><div class="field"><label>Rubrik</label><input class="stepTitle" value="${esc(s.title)}"></div><div class="field"><label>Text</label><textarea class="stepText">${esc(s.text)}</textarea></div></div>`).join("")}
-function collectSteps(){return [...document.querySelectorAll("#stepEditor .stepedit")].map(el=>({title:el.querySelector(".stepTitle").value.trim(),text:el.querySelector(".stepText").value.trim()})).filter(s=>s.title||s.text)}
+function openEditSite(){$("editBrandName").value=data.settings?.brandName||"";$("editBrandSub").value=data.settings?.brandSub||"";$("editHeroTitle").value=data.settings?.heroTitle||"";$("editHeroText").value=data.settings?.heroText||"";openModal("editSiteModal")}
+function openEditPage(k){editingPageKey=k;const p=data.pages?.[k];if(!p)return;$("editPageIcon").value=p.icon||"";$("editPageKicker").value=p.kicker||"";$("editPageTitle").value=p.title||"";$("editPageSummary").value=p.summary||"";$("editPageIntro").value=p.intro||"";$("editPageNote").value=p.note||"";$("editPageNoteType").value=["info","good","warn","danger"].includes(p.noteType)?p.noteType:"info";renderStepEditor(p.steps||[]);openModal("editPageModal")}
+function renderStepEditor(st){$("stepEditor").innerHTML=(st||[]).map((s,i)=>`<div class="stepedit"><div class="stepeditbar"><strong>Steg ${i+1}</strong><button class="btn small danger" data-remove-step="${i}" type="button">Ta bort</button></div><div class="field"><label>Rubrik</label><input class="stepTitle" value="${esc(s.title||"")}"></div><div class="field"><label>Text</label><textarea class="stepText">${esc(s.text||"")}</textarea></div></div>`).join("")}
+function collectSteps(){return [...document.querySelectorAll("#stepEditor .stepedit")].map(el=>({title:el.querySelector(".stepTitle")?.value.trim()||"",text:el.querySelector(".stepText")?.value.trim()||""})).filter(s=>s.title||s.text)}
 
-document.addEventListener("click",e=>{const p=e.target.closest("[data-page]");if(p&&!e.target.closest("[data-edit]"))showPage(p.dataset.page);const ed=e.target.closest("[data-edit]");if(ed){e.stopPropagation();openEditPage(ed.dataset.edit)}const cl=e.target.closest("[data-close]");if(cl)closeModal(cl.dataset.close);const rm=e.target.closest("[data-remove-step]");if(rm){const st=collectSteps();st.splice(Number(rm.dataset.removeStep),1);renderStepEditor(st)}});
-$("backBtn").onclick=showHome;$("adminBackBtn").onclick=showHome;$("adminDashboardBtn").onclick=showAdmin;$("editSiteBtn").onclick=openEditSite;$("editPageBtn").onclick=()=>currentPage&&openEditPage(currentPage);$("loginBtn").onclick=()=>openModal("loginModal");
-$("logoutBtn").onclick=async()=>{if(appwriteReady&&account)try{await account.deleteSession({sessionId:"current"})}catch{}currentUser=null;setAdmin(false);showHome();toast("Utloggad")};
-$("submitLoginBtn").onclick=async()=>{if(!hasConfig){if($("demoPassword").value==="churchdemo"){setAdmin(true);closeModal("loginModal");toast("Demo-admin aktiv")}else toast("Fel demo-lösenord");return}try{await account.createEmailPasswordSession({email:$("loginEmail").value.trim(),password:$("loginPassword").value});currentUser=await account.get();setAdmin(true);closeModal("loginModal");updateAdminView();toast("Inloggad")}catch(e){toast(e.message||"Inloggningen misslyckades")}};
-$("saveSiteBtn").onclick=async()=>{data.settings.brandName=$("editBrandName").value.trim()||data.settings.brandName;data.settings.brandSub=$("editBrandSub").value.trim();data.settings.heroTitle=$("editHeroTitle").value.trim();data.settings.heroText=$("editHeroText").value.trim();renderHome();closeModal("editSiteModal");await saveContent()};
+document.addEventListener("click",e=>{
+  const p=e.target.closest("[data-page]");if(p&&!e.target.closest("[data-edit]"))showPage(p.dataset.page);
+  const ed=e.target.closest("[data-edit]");if(ed){e.stopPropagation();openEditPage(ed.dataset.edit)}
+  const cl=e.target.closest("[data-close]");if(cl)closeModal(cl.dataset.close);
+  const rm=e.target.closest("[data-remove-step]");if(rm){const st=collectSteps();st.splice(Number(rm.dataset.removeStep),1);renderStepEditor(st)}
+});
+$("backBtn").onclick=showHome;$("adminBackBtn").onclick=showHome;$("adminDashboardBtn").onclick=()=>{if(admin)showAdmin()};$("editSiteBtn").onclick=openEditSite;$("editPageBtn").onclick=()=>currentPage&&openEditPage(currentPage);$("loginBtn").onclick=()=>openModal("loginModal");
+$("logoutBtn").onclick=()=>toast("Inloggningen startar fortfarande. Försök igen om ett ögonblick.");
+$("submitLoginBtn").onclick=()=>toast("Inloggningen startar fortfarande. Försök igen om ett ögonblick.");
+$("saveSiteBtn").onclick=async()=>{data.settings.brandName=$("editBrandName").value.trim()||data.settings.brandName;data.settings.brandSub=$("editBrandSub").value.trim();data.settings.heroTitle=$("editHeroTitle").value.trim();data.settings.heroText=$("editHeroText").value.trim();renderHome();closeModal("editSiteModal");try{await saveContent()}catch(e){toast(e.message)}};
 $("addStepBtn").onclick=()=>{const st=collectSteps();st.push({title:"Nytt steg",text:"Skriv instruktionen här."});renderStepEditor(st)};
-$("savePageBtn").onclick=async()=>{const p=data.pages[editingPageKey];p.icon=$("editPageIcon").value.trim();p.kicker=$("editPageKicker").value.trim();p.title=$("editPageTitle").value.trim();p.summary=$("editPageSummary").value.trim();p.intro=$("editPageIntro").value.trim();p.steps=collectSteps();p.note=$("editPageNote").value.trim();p.noteType=$("editPageNoteType").value;renderHome();if(currentPage===editingPageKey)renderPage(currentPage);closeModal("editPageModal");await saveContent()};
-window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(h==="admin"&&admin)showAdmin();else if(data.pages[h])showPage(h);else showHome()});
-(async()=>{renderHome();await initAppwrite();const h=location.hash.slice(1);if(h==="admin"&&admin)showAdmin();else if(data.pages[h])showPage(h);else showHome()})();
+$("savePageBtn").onclick=async()=>{const p=data.pages?.[editingPageKey];if(!p)return;p.icon=$("editPageIcon").value.trim();p.kicker=$("editPageKicker").value.trim();p.title=$("editPageTitle").value.trim();p.summary=$("editPageSummary").value.trim();p.intro=$("editPageIntro").value.trim();p.steps=collectSteps();p.note=$("editPageNote").value.trim();p.noteType=$("editPageNoteType").value;renderHome();if(currentPage===editingPageKey)renderPage(currentPage);closeModal("editPageModal");try{await saveContent()}catch(e){toast(e.message)}};
+window.addEventListener("hashchange",()=>{const h=decodeURIComponent(location.hash.slice(1));if(h==="admin"&&admin)showAdmin();else if(data.pages?.[h])showPage(h);else showHome()});
+
+renderHome();
+const initial=decodeURIComponent(location.hash.slice(1));
+if(initial&&data.pages?.[initial])showPage(initial);else showHome();
