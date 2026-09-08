@@ -9,10 +9,19 @@ const json = (statusCode, payload) => ({
   body: JSON.stringify(payload)
 });
 
-const withTimeout = (promise, label = "Supabase Auth") => Promise.race([
-  promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} svarade inte i tid.`)), AUTH_TIMEOUT_MS))
-]);
+async function withTimeout(promise, label = "Supabase Auth") {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} svarade inte i tid.`)), AUTH_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
@@ -27,16 +36,15 @@ export const handler = async (event) => {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
 
-  let authData;
+  let caller;
   try {
-    const result = await withTimeout(supabase.auth.getUser(token), "Sessionskontrollen");
-    authData = result.data;
-    if (result.error || !authData?.user) return json(401, { error: "Ogiltig session." });
+    const { data, error } = await withTimeout(supabase.auth.getUser(token), "Sessionskontrollen");
+    caller = data?.user || null;
+    if (error || !caller) return json(401, { error: "Ogiltig session." });
   } catch (error) {
     return json(504, { error: error?.message || "Sessionskontrollen svarade inte i tid." });
   }
 
-  const caller = authData.user;
   const { data: callerRow, error: callerError } = await supabase
     .from("admins")
     .select("user_id,role")
@@ -100,7 +108,9 @@ export const handler = async (event) => {
 
     if (action === "invite") {
       const email = String(body.email || "").trim().toLowerCase();
-      if (!/^\S+@\S+\.\S+$/.test(email)) return json(400, { error: "Ogiltig e-postadress." });
+      if (email.length > 254 || !/^\S+@\S+\.\S+$/.test(email)) {
+        return json(400, { error: "Ogiltig e-postadress." });
+      }
 
       const authUsers = await allAuthUsers();
       let user = authUsers.find((item) => String(item.email || "").toLowerCase() === email) || null;
@@ -166,8 +176,11 @@ export const handler = async (event) => {
         .from("admins")
         .upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id" });
       if (adminError) {
-        try { await withTimeout(supabase.auth.admin.deleteUser(user.id), "Återställningen efter ett fel"); }
-        catch (cleanupError) { console.warn("Kunde inte återställa misslyckad admininbjudan", cleanupError?.message || cleanupError); }
+        try {
+          await withTimeout(supabase.auth.admin.deleteUser(user.id), "Återställningen efter ett fel");
+        } catch (cleanupError) {
+          console.warn("Kunde inte återställa misslyckad admininbjudan", cleanupError?.message || cleanupError);
+        }
         throw adminError;
       }
 
