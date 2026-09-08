@@ -27,7 +27,7 @@ export const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return json(503, { error: "SUPABASE_SERVICE_ROLE_KEY saknas i Netlify." });
+  if (!serviceKey) return json(503, { error: "SUPABASE_SERVICE_ROLE_KEY saknas i servermiljön." });
 
   const token = String(event.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return json(401, { error: "Du är inte inloggad." });
@@ -59,7 +59,15 @@ export const handler = async (event) => {
   catch { return json(400, { error: "Ogiltig begäran." }); }
 
   const action = body.action;
-  const siteUrl = String(process.env.URL || "https://livestream-help.netlify.app").replace(/\/+$/, "");
+  const forwardedHost = String(event.headers["x-forwarded-host"] || event.headers.host || "").split(",")[0].trim();
+  const forwardedProto = String(event.headers["x-forwarded-proto"] || "https").split(",")[0].trim() || "https";
+  const requestOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
+  const siteUrl = String(
+    process.env.SITE_URL ||
+    process.env.URL ||
+    requestOrigin ||
+    "https://livestream-help.netlify.app"
+  ).replace(/\/+$/, "");
   const inviteRedirect = `${siteUrl}/?setup=admin`;
 
   async function allAuthUsers() {
