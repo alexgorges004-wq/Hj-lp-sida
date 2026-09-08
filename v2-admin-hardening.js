@@ -257,7 +257,11 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  S.supa.auth.onAuthStateChange(() => setTimeout(applyAdminState, 80));
+  S.supa.auth.onAuthStateChange(() => {
+    setTimeout(applyAdminState, 80);
+    setTimeout(applyAdminState, 700);
+  });
+
   if (document.readyState === "loading") {
     window.addEventListener("load", () => {
       setTimeout(applyAdminState, 900);
@@ -266,6 +270,7 @@
     });
   } else {
     setTimeout(applyAdminState, 200);
+    setTimeout(applyAdminState, 900);
     bindOwnerButton();
   }
 })();
