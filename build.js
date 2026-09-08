@@ -20,6 +20,7 @@ const staticFiles = [
   "v2-admin-hardening.js",
   "step-order-fix.js",
   "multi-image-fix.js",
+  "media-editor-click-fix.js",
   "favicon.ico"
 ];
 
