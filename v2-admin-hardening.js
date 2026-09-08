@@ -94,12 +94,12 @@
           <div class="modal">
             <div class="modalhead">
               <h2>Användare & roller</h2>
-              <button class="close" id="v2AdminsClose" type="button">×</button>
+              <button class="close" id="v2AdminsClose" type="button" aria-label="Stäng användarhantering">×</button>
             </div>
             <div class="modalbody">
               <div class="v2-note">Ägare kan bjuda in fler admins och ändra deras roller.</div>
               <div class="v2-admin-invite">
-                <input id="v2AdminEmail" type="email" placeholder="namn@example.com">
+                <input id="v2AdminEmail" type="email" placeholder="namn@example.com" aria-label="E-postadress för ny admin" autocomplete="email" inputmode="email">
                 <button class="btn primary" id="v2AdminInvite" type="button">Bjud in admin</button>
               </div>
               <div id="v2AdminsList" class="v2-list"></div>
@@ -111,6 +111,16 @@
         </div>`);
       modal = document.getElementById("v2AdminsModal");
     }
+
+    const closeButton = modal.querySelector("#v2AdminsClose");
+    if (closeButton) closeButton.setAttribute("aria-label", "Stäng användarhantering");
+    const emailInput = modal.querySelector("#v2AdminEmail");
+    if (emailInput) {
+      emailInput.setAttribute("aria-label", "E-postadress för ny admin");
+      emailInput.setAttribute("autocomplete", "email");
+      emailInput.setAttribute("inputmode", "email");
+    }
+
     bindModal(modal);
     return modal;
   }
@@ -126,7 +136,7 @@
               <small>${S.esc(user.id)}</small>
             </div>
             <div class="v2-admin-actions">
-              <select data-admin-role="${S.esc(user.id)}">
+              <select data-admin-role="${S.esc(user.id)}" aria-label="Roll för ${S.esc(user.email || user.id)}">
                 <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
                 <option value="owner" ${user.role === "owner" ? "selected" : ""}>Ägare</option>
               </select>
@@ -253,7 +263,7 @@
   const observer = new MutationObserver(() => {
     bindOwnerButton();
     const modal = document.getElementById("v2AdminsModal");
-    if (modal) bindModal(modal);
+    if (modal) ensureAdminsModal();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
