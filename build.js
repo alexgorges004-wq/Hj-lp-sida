@@ -18,6 +18,7 @@ const staticFiles = [
   "v2-height-fix.js",
   "v2-invite.js",
   "v2-admin-hardening.js",
+  "step-order-fix.js",
   "favicon.ico"
 ];
 
