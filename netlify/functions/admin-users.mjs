@@ -61,21 +61,37 @@ export const handler = async (event) => {
     return count || 0;
   }
 
+  async function adminRowsWithEmails(rows = []) {
+    return Promise.all(rows.map(async (row) => {
+      try {
+        const { data, error } = await supabase.auth.admin.getUserById(row.user_id);
+        if (error) throw error;
+        return {
+          id: row.user_id,
+          email: data?.user?.email || "",
+          role: row.role === "owner" ? "owner" : "admin"
+        };
+      } catch (error) {
+        console.warn("Kunde inte läsa adminens e-post", row.user_id, error?.message || error);
+        return {
+          id: row.user_id,
+          email: "",
+          role: row.role === "owner" ? "owner" : "admin"
+        };
+      }
+    }));
+  }
+
   try {
     if (action === "list") {
-      const [{ data: rows, error: rowsError }, authUsers] = await Promise.all([
-        supabase.from("admins").select("user_id,role").order("role", { ascending: false }),
-        allAuthUsers()
-      ]);
+      const { data: rows, error: rowsError } = await supabase
+        .from("admins")
+        .select("user_id,role")
+        .order("role", { ascending: false });
       if (rowsError) throw rowsError;
-      const byId = new Map(authUsers.map((user) => [user.id, user]));
-      return json(200, {
-        users: (rows || []).map((row) => ({
-          id: row.user_id,
-          email: byId.get(row.user_id)?.email || "",
-          role: row.role === "owner" ? "owner" : "admin"
-        }))
-      });
+
+      const users = await adminRowsWithEmails(rows || []);
+      return json(200, { users });
     }
 
     if (action === "invite") {
