@@ -22,6 +22,7 @@ function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt
 function toast(msg){const t=$("toast");if(!t)return;t.textContent=msg;t.classList.remove("hidden");clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.add("hidden"),2300)}
 function openModal(id){$(id)?.classList.remove("hidden")}
 function closeModal(id){$(id)?.classList.add("hidden")}
+function safeHash(){const raw=location.hash.slice(1);try{return decodeURIComponent(raw)}catch{return raw}}
 
 function renderHeader(){
   if(!data.settings||typeof data.settings!=="object")data.settings={};
@@ -76,8 +77,8 @@ $("submitLoginBtn").onclick=()=>toast("Inloggningen startar fortfarande. Försö
 $("saveSiteBtn").onclick=async()=>{data.settings.brandName=$("editBrandName").value.trim()||data.settings.brandName;data.settings.brandSub=$("editBrandSub").value.trim();data.settings.heroTitle=$("editHeroTitle").value.trim();data.settings.heroText=$("editHeroText").value.trim();renderHome();closeModal("editSiteModal");try{await saveContent()}catch(e){toast(e.message)}};
 $("addStepBtn").onclick=()=>{const st=collectSteps();st.push({title:"Nytt steg",text:"Skriv instruktionen här."});renderStepEditor(st)};
 $("savePageBtn").onclick=async()=>{const p=data.pages?.[editingPageKey];if(!p)return;p.icon=$("editPageIcon").value.trim();p.kicker=$("editPageKicker").value.trim();p.title=$("editPageTitle").value.trim();p.summary=$("editPageSummary").value.trim();p.intro=$("editPageIntro").value.trim();p.steps=collectSteps();p.note=$("editPageNote").value.trim();p.noteType=$("editPageNoteType").value;renderHome();if(currentPage===editingPageKey)renderPage(currentPage);closeModal("editPageModal");try{await saveContent()}catch(e){toast(e.message)}};
-window.addEventListener("hashchange",()=>{const h=decodeURIComponent(location.hash.slice(1));if(h==="admin"&&admin)showAdmin();else if(data.pages?.[h])showPage(h);else showHome()});
+window.addEventListener("hashchange",()=>{const h=safeHash();if(h==="admin"&&admin)showAdmin();else if(data.pages?.[h])showPage(h);else showHome()});
 
 renderHome();
-const initial=decodeURIComponent(location.hash.slice(1));
+const initial=safeHash();
 if(initial&&data.pages?.[initial])showPage(initial);else showHome();
