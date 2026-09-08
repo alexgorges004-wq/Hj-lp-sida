@@ -8,6 +8,7 @@
     .step p {
       font-size: 16px !important;
       line-height: 1.65 !important;
+      white-space: pre-line !important;
     }
     .guide-shot-wrap figcaption,
     .guide-video-wrap figcaption {
