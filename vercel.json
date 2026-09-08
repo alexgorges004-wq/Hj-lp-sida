@@ -6,5 +6,11 @@
     "api/admin-users.mjs": {
       "maxDuration": 10
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/.netlify/functions/admin-users",
+      "destination": "/api/admin-users"
+    }
+  ]
 }
