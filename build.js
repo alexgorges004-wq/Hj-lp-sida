@@ -19,6 +19,7 @@ const staticFiles = [
   "v2-invite.js",
   "v2-admin-hardening.js",
   "step-order-fix.js",
+  "multi-image-fix.js",
   "favicon.ico"
 ];
 
