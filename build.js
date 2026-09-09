@@ -24,6 +24,7 @@ const staticFiles = [
   "media-editor-click-fix.js",
   "multi-select-image-fix.js",
   "guide-text-size.js",
+  "guide-image-grid.js",
   "favicon.ico"
 ];
 
