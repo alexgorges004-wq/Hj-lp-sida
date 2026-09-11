@@ -25,6 +25,7 @@ const staticFiles = [
   "multi-select-image-fix.js",
   "guide-text-size.js",
   "guide-image-grid.js",
+  "stream-deck-36-fix.js",
   "favicon.ico"
 ];
 
