@@ -23,9 +23,39 @@
   `;
   document.head.appendChild(style);
 
-  S.hooks?.page?.push((key) => {
+  function renderDeckMap(key) {
     if (key !== "equipment") return;
-    const heading = document.querySelector("#v2DeckMap h2");
-    if (heading) heading.textContent = "Stream Deck XL · 36 knappar";
-  });
+    S.ensureData();
+    const body = document.getElementById("pageBody");
+    if (!body) return;
+
+    document.getElementById("v2DeckMap")?.remove();
+    const sec = document.createElement("section");
+    sec.id = "v2DeckMap";
+    sec.className = "panel";
+    sec.innerHTML = `<h2>Stream Deck XL · 36 knappar</h2><p>${admin ? "Klicka på en knapp för att redigera vad den gör." : "Klicka på en knapp för att läsa vad den gör."}</p><div class="v2-deck-scroll"><div class="v2-deck-grid">${data.streamDeck.buttons.map((b, i) => `<button class="v2-deck-key v2-deck-${S.esc(b.accent || "neutral")}" data-v2-deck="${i}" type="button"><span>${S.esc(b.label || String(i + 1))}</span><small>${b.label ? `#${i + 1}` : "Ej inställd"}</small></button>`).join("")}</div></div><div id="v2DeckDetail" class="v2-deck-detail">Välj en knapp för att se beskrivningen.</div>`;
+    body.appendChild(sec);
+    S.applyVars?.(sec);
+  }
+
+  function install() {
+    if (typeof renderPage !== "function" || renderPage.__deck36Wrapped) return;
+    const baseRenderPage = renderPage;
+    const wrapped = function (key) {
+      const result = baseRenderPage(key);
+      renderDeckMap(key);
+      return result;
+    };
+    wrapped.__deck36Wrapped = true;
+    renderPage = wrapped;
+
+    if (currentPage === "equipment" || location.hash === "#equipment") {
+      renderDeckMap("equipment");
+    }
+  }
+
+  // multi-image-fix.js replaces renderPage shortly after window.load.
+  // Install after that replacement so the Stream Deck map is not lost.
+  if (document.readyState === "complete") setTimeout(install, 150);
+  else window.addEventListener("load", () => setTimeout(install, 150), { once: true });
 })();
