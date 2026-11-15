@@ -46,6 +46,7 @@
     document.documentElement.classList.toggle("help-portal-mode", !activeArea && !currentPage);
     document.documentElement.classList.toggle("help-area-mode", !!activeArea && !currentPage);
     document.documentElement.classList.toggle("help-guide-mode", !!currentPage);
+    document.documentElement.classList.add("nav-ready");
   }
 
   function ensureGlobalNav() {
