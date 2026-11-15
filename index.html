@@ -8,6 +8,13 @@
 <script>window.__initialHash = location.hash;</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style id="pre-nav-hide">
+html:not(.nav-ready) body{overflow:hidden}
+html:not(.nav-ready) #appBootLoader{display:grid}
+html.nav-ready #appBootLoader{display:none}
+#appBootLoader{position:fixed;inset:0;z-index:99999;display:none;place-items:center;background:#07111f}
+.app-boot-card{display:flex;align-items:center;gap:12px;padding:16px 20px;border:1px solid #263b58;border-radius:16px;background:#0e1c2e;color:#f3f6fb;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.app-boot-spinner{width:20px;height:20px;border:3px solid #334a68;border-top-color:#7c5cff;border-radius:50%;animation:appbootspin .8s linear infinite}
+@keyframes appbootspin{to{transform:rotate(360deg)}}
 html:not(.nav-ready) #homeView .hero,
 html:not(.nav-ready) #homeView .legacy-home-section,
 html:not(.nav-ready) #homeView .front-category,
@@ -21,6 +28,12 @@ html:not(.nav-ready) #dynamicCategories{display:none!important}
 </style>
 </head>
 <body>
+<div id="appBootLoader" aria-live="polite">
+  <div class="app-boot-card">
+    <div class="app-boot-spinner" aria-hidden="true"></div>
+    <strong>Laddar hjälpsidan…</strong>
+  </div>
+</div>
 <noscript><div style="padding:20px;background:#fff3cd;color:#111">Den här versionen kräver JavaScript.</div></noscript>
 <div id="setupBar" class="hidden"></div><div id="realLogin" class="hidden"></div><div id="demoLogin" class="hidden"></div>
 <div class="topbar"><div class="topbarin"><a class="brand" href="#home" aria-label="Till startsidan" title="Till startsidan"><div class="logo">✝</div><div><strong id="brandName">Jungfru Maria Kyrkan</strong><span id="brandSub">Livestreamhjälp</span></div></a><div class="actions"><button class="btn small hidden" id="adminDashboardBtn">Admin</button><button class="btn small" id="loginBtn"><span class="label">Admin </span>Login</button><button class="btn small hidden" id="logoutBtn">Logga ut</button></div></div></div>
