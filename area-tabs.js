@@ -46,6 +46,9 @@
     document.documentElement.classList.toggle("help-portal-mode", !activeArea && !currentPage);
     document.documentElement.classList.toggle("help-area-mode", !!activeArea && !currentPage);
     document.documentElement.classList.toggle("help-guide-mode", !!currentPage);
+  }
+
+  function revealApp() {
     document.documentElement.classList.add("nav-ready");
   }
 
@@ -380,6 +383,7 @@
     setModeClasses();
     renderGlobalNav(currentPage?areaForPage(currentPage)?.id||"":activeArea);
     if(!currentPage)renderHome();
+    requestAnimationFrame(()=>requestAnimationFrame(revealApp));
   }
 
   initAreaNavigation();
