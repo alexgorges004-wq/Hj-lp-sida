@@ -90,7 +90,7 @@
     nav.innerHTML=`<div class="area-global-nav-inner">
       <button class="area-home-link ${!highlightId?"active":""}" data-area-home type="button">${S.esc(siteText("navHomeLabel","Hem"))}</button>
       ${data.areas.map(a=>`<button class="area-nav-tab ${a.id===highlightId?"active":""}" data-area-nav="${S.esc(a.id)}" type="button"><span>${iconMarkup(a.icon)}</span>${S.esc(a.title)}</button>`).join("")}
-      ${admin?'<button class="area-manage-top" id="manageAreasTopBtn" type="button">⚙ ${S.esc(siteText("manageTabsLabel","Hantera flikar"))}</button>':""}
+      ${admin?`<button class="area-manage-top" id="manageAreasTopBtn" type="button">⚙ ${S.esc(siteText("manageTabsLabel","Hantera flikar"))}</button>`:""}
     </div>`;
   }
 
