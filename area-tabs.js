@@ -42,6 +42,12 @@
     return data.areas.find(a=>a.id===activeArea) || null;
   }
 
+  function setModeClasses() {
+    document.documentElement.classList.toggle("help-portal-mode", !activeArea && !currentPage);
+    document.documentElement.classList.toggle("help-area-mode", !!activeArea && !currentPage);
+    document.documentElement.classList.toggle("help-guide-mode", !!currentPage);
+  }
+
   function ensureGlobalNav() {
     let nav=document.getElementById("globalAreaNav");
     if(nav) return nav;
@@ -160,8 +166,9 @@
     activeArea=id;
     baseShowHome();
     history.replaceState(null,"","#area-"+encodeURIComponent(id));
+    setModeClasses();
     renderHome();
-    setTimeout(applyHomeMode,0);
+    applyHomeMode();
     window.scrollTo(0,0);
   }
 
@@ -169,8 +176,9 @@
     activeArea="";
     baseShowHome();
     history.replaceState(null,"","#home");
+    setModeClasses();
     renderHome();
-    setTimeout(applyHomeMode,0);
+    applyHomeMode();
     window.scrollTo(0,0);
   }
 
@@ -251,6 +259,8 @@
 
   const baseRenderHome=renderHome;
   renderHome=function(...args){
+    ensureAreas();
+    setModeClasses();
     const beforeIds=new Set((data.categories||[]).map(c=>c.id));
     const result=baseRenderHome.apply(this,args);
     ensureAreas();
@@ -268,7 +278,8 @@
       }
     }
 
-    setTimeout(applyHomeMode,0);
+    applyHomeMode();
+    setModeClasses();
     return result;
   };
 
@@ -276,6 +287,7 @@
   renderPage=function(key){
     const result=baseRenderPage(key);
     const area=areaForPage(key);
+    setModeClasses();
     renderGlobalNav(area?.id||"");
     return result;
   };
@@ -283,9 +295,11 @@
   const baseShowHome=showHome;
   showHome=function(){
     activeArea="";
+    setModeClasses();
     const result=baseShowHome();
     renderHome();
-    setTimeout(applyHomeMode,0);
+    applyHomeMode();
+    setModeClasses();
     return result;
   };
 
@@ -321,6 +335,12 @@
 
   const css=document.createElement("style");
   css.textContent=`
+    html.help-portal-mode #homeView .hero,
+    html.help-portal-mode #homeView .front-admin-toolbar,
+    html.help-portal-mode #homeView .front-category,
+    html.help-portal-mode #homeView .home-text-block{display:none!important}
+    html.help-area-mode #homeView .hero,
+    html.help-area-mode #homeView .home-text-block{display:none!important}
     .topbar{padding-bottom:0}
     .area-global-nav{border-top:1px solid rgba(255,255,255,.06);background:rgba(7,16,29,.96)}
     .area-global-nav-inner{max-width:1080px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;gap:2px;overflow-x:auto}
@@ -345,7 +365,7 @@
   `;
   document.head.appendChild(css);
 
-  window.addEventListener("load",()=>setTimeout(()=>{
+  function initAreaNavigation() {
     ensureAreas();
     const hash=decodeURIComponent(location.hash.slice(1));
     if(hash.startsWith("area-")){
@@ -356,7 +376,11 @@
     }else{
       activeArea="";
     }
+    setModeClasses();
     renderGlobalNav(currentPage?areaForPage(currentPage)?.id||"":activeArea);
     if(!currentPage)renderHome();
-  },140));
+  }
+
+  initAreaNavigation();
+  window.addEventListener("load",()=>initAreaNavigation(),{once:true});
 })();
