@@ -1,71 +1,80 @@
-/* Light theme: keep church livestream guide UI readable in every section.
-   Elements with user-chosen inline colors (custom text blocks) are intentionally untouched. */
+/* Warm, neutral light theme for Jungfru Maria Kyrkan.
+   User-chosen colors on custom text blocks remain unchanged. */
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"] { color-scheme: dark; }
 
-/* Main layout and common text */
+/* Navigation, typography, and page furniture */
+html[data-theme="light"] body { background:#f5f1e8; color:#292521; }
+html[data-theme="light"] .topbar { background:rgba(255,252,247,.96); }
+html[data-theme="light"] .area-global-nav { background:#fffcf7 !important; border-color:#d9d0c3; }
+html[data-theme="light"] .area-nav-tab,
+html[data-theme="light"] .area-home-link,
+html[data-theme="light"] .area-manage-top { color:#645c52; }
+html[data-theme="light"] .area-nav-tab.active,
+html[data-theme="light"] .area-home-link.active { color:#292521 !important; background:#eee7dc !important; }
 html[data-theme="light"] .kicker,
 html[data-theme="light"] .sectionlabel,
-html[data-theme="light"] .back { color: #56677d; }
-html[data-theme="light"] .card .more { color: #5147be; }
-html[data-theme="light"] .arr { color: #556b86; }
-html[data-theme="light"] .footer { color: #65758b; }
-html[data-theme="light"] .statuspill { background: #fff; border: 1px solid #d6e0e9; color: #3f5067; }
+html[data-theme="light"] .back { color:#645c52; }
+html[data-theme="light"] .card .more { color:#52437d; }
+html[data-theme="light"] .arr,
+html[data-theme="light"] .footer { color:#645c52; }
+html[data-theme="light"] .statuspill { background:#fffcf7; border:1px solid #d9d0c3; color:#292521; }
+html[data-theme="light"] .adminbar .statuspill { background:#fffcf7; color:#292521; }
 html[data-theme="light"] .guide-shot-wrap figcaption,
-html[data-theme="light"] .guide-video-wrap figcaption { color: var(--muted); }
-html[data-theme="light"] .adminbar .statuspill { background: #fff; color: #3f5067; }
+html[data-theme="light"] .guide-video-wrap figcaption { color:var(--muted); }
 html[data-theme="light"] .shot-editor,
-html[data-theme="light"] .current-shot { background: #f7faff; border-color: #d8e2ee; }
+html[data-theme="light"] .current-shot { background:#faf6ef; border-color:#d9d0c3; }
 html[data-theme="light"] .shot-editor-title span,
-html[data-theme="light"] .current-shot small { color: var(--muted); }
+html[data-theme="light"] .current-shot small { color:var(--muted); }
 
-/* Guide callouts */
-html[data-theme="light"] .callout.info { background: #edf6ff; border-color: #afcfea; color: #235b91; }
-html[data-theme="light"] .callout.good { background: #eaf8f1; border-color: #b2dfc8; color: #176745; }
-html[data-theme="light"] .callout.warn { background: #fff8e6; border-color: #efda9b; color: #79500c; }
-html[data-theme="light"] .callout.danger { background: #fff0f2; border-color: #ecc0c8; color: #963347; }
+/* Callouts stay distinguishable but use the warm body-text color. */
+html[data-theme="light"] .callout.info { background:#f1f0eb; border-color:#c9c5b7; color:#292521; }
+html[data-theme="light"] .callout.good { background:#eaf3e6; border-color:#b8cfaa; color:#292521; }
+html[data-theme="light"] .callout.warn { background:#fbefd4; border-color:#ddc38a; color:#292521; }
+html[data-theme="light"] .callout.danger { background:#fae6e3; border-color:#dfb5ae; color:#292521; }
 
-/* Global navigation and help areas */
+/* Help areas and cards */
 html[data-theme="light"] .area-portal-title p,
 html[data-theme="light"] .area-page-heading p,
 html[data-theme="light"] .area-manager-intro,
-html[data-theme="light"] .area-manager-row small { color: var(--muted); }
-html[data-theme="light"] .area-portal-card > span:last-child { color: #596d84; }
+html[data-theme="light"] .area-manager-row small { color:var(--muted); }
+html[data-theme="light"] .area-portal-card,
+html[data-theme="light"] .area-page-heading { background:linear-gradient(180deg,#fffcf7,#faf6ef); color:#292521; border-color:#d9d0c3; }
+html[data-theme="light"] .area-portal-card > span:last-child { color:#645c52; }
 html[data-theme="light"] .area-portal-icon,
-html[data-theme="light"] .area-page-icon { background: #edf2fa; }
-html[data-theme="light"] .area-portal-card { border-color: #d8e0ea; }
-html[data-theme="light"] .area-portal-card:hover { background: #f6f7ff; border-color: #8873e8; }
-html[data-theme="light"] .area-home-link.active,
-html[data-theme="light"] .area-nav-tab.active { color: #332d78; }
+html[data-theme="light"] .area-page-icon { background:#eee7dc; }
+html[data-theme="light"] .area-portal-card:hover { background:#f2eadf; border-color:#bcae99; }
 
-/* Content editor, categories, and administrative controls */
-html[data-theme="light"] .front-admin-toolbar { background: linear-gradient(180deg,#ffffff,#f6f8fc); border-color: #d7e1ed; }
-html[data-theme="light"] .front-admin-toolbar strong { color: var(--text); }
+/* Editors, dialogs, and administration */
+html[data-theme="light"] .front-admin-toolbar { background:linear-gradient(180deg,#fffcf7,#faf6ef); border-color:#d9d0c3; }
+html[data-theme="light"] .front-admin-toolbar strong { color:#292521; }
 html[data-theme="light"] .front-admin-toolbar span,
-html[data-theme="light"] .group-field-note { color: var(--muted); }
+html[data-theme="light"] .group-field-note { color:var(--muted); }
 html[data-theme="light"] .category-empty,
 html[data-theme="light"] .category-modal-note,
 html[data-theme="light"] .home-text-modal-note,
 html[data-theme="light"] .v2-note,
-html[data-theme="light"] .recovery-note { background: #f5f8fc; color: #52657d; border-color: #d4dfeb; }
+html[data-theme="light"] .recovery-note { background:#faf6ef; color:#645c52; border-color:#d9d0c3; }
 html[data-theme="light"] .v2-list-item,
-html[data-theme="light"] .trash-item { background: #fff; border-color: #d5e0eb; }
+html[data-theme="light"] .trash-item { background:#fffcf7; border-color:#d9d0c3; color:#292521; }
 html[data-theme="light"] .v2-list-item small,
 html[data-theme="light"] .trash-item-meta,
-html[data-theme="light"] .trash-section-title { color: var(--muted); }
-html[data-theme="light"] .trash-empty { background: #f5f8fc; border-color: #cdd9e6; color: #52657d; }
+html[data-theme="light"] .trash-section-title { color:var(--muted); }
+html[data-theme="light"] .trash-empty { background:#faf6ef; border-color:#d9d0c3; color:#645c52; }
 html[data-theme="light"] .v2-global-row input,
 html[data-theme="light"] .v2-admin-invite input,
-html[data-theme="light"] .v2-admin-actions select { background: #fff; color: var(--text); border-color: #cbd6e2; }
-html[data-theme="light"] .v2-cloud-banner { background: #fff0f2; color: #95374a; border-color: #e5b7c1; }
+html[data-theme="light"] .v2-admin-actions select,
+html[data-theme="light"] .category-area-select,
+html[data-theme="light"] .area-manager-row input { background:#fffcf7; color:#292521; border-color:#d2c8b9; }
+html[data-theme="light"] .v2-cloud-banner { background:#fae6e3; color:#292521; border-color:#dfb5ae; }
 
-/* Stream Deck editor: keep button-category colors, but render them as light pastels */
-html[data-theme="light"] .v2-deck-key { background: #f6f8fc; color: #1d3047; border-color: #cddae8; }
-html[data-theme="light"] .v2-deck-key small { color: #4f627b; }
-html[data-theme="light"] .v2-deck-purple { background: #f0ecff; border-color: #b6a7ee; }
-html[data-theme="light"] .v2-deck-blue { background: #e8f2ff; border-color: #9ac1ec; }
-html[data-theme="light"] .v2-deck-green { background: #e7f7ee; border-color: #9ed4b5; }
-html[data-theme="light"] .v2-deck-red { background: #ffedf0; border-color: #e8acb9; }
-html[data-theme="light"] .v2-deck-yellow { background: #fff6df; border-color: #e4c47f; }
-html[data-theme="light"] .v2-deck-detail { background: #f5f8fc; border-color: #d5e0eb; }
-html[data-theme="light"] .v2-deck-detail p { color: #53677e; }
+/* Stream Deck: subtle pastel categories and consistent dark text. */
+html[data-theme="light"] .v2-deck-key { background:#faf6ef; color:#292521; border-color:#d9d0c3; }
+html[data-theme="light"] .v2-deck-key small { color:#645c52; }
+html[data-theme="light"] .v2-deck-purple { background:#f0eafd; border-color:#bea9d8; }
+html[data-theme="light"] .v2-deck-blue { background:#e8eff5; border-color:#b3c7d7; }
+html[data-theme="light"] .v2-deck-green { background:#e7f0e5; border-color:#afc8aa; }
+html[data-theme="light"] .v2-deck-red { background:#f8e8e6; border-color:#dcb4ae; }
+html[data-theme="light"] .v2-deck-yellow { background:#faf0d9; border-color:#d8c08d; }
+html[data-theme="light"] .v2-deck-detail { background:#faf6ef; border-color:#d9d0c3; color:#292521; }
+html[data-theme="light"] .v2-deck-detail p { color:#645c52; }
