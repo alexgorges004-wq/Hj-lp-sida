@@ -5,6 +5,7 @@ const { execFileSync } = require("child_process");
 const out = path.join(__dirname, "dist");
 const staticFiles = [
   "index.html",
+  "theme-light.css",
   "app.js",
   "config.js",
   "frontpage-core.js",
