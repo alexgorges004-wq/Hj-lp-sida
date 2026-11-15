@@ -26,10 +26,21 @@ function safeHash(){const raw=location.hash.slice(1);try{return decodeURICompone
 
 function renderHeader(){
   if(!data.settings||typeof data.settings!=="object")data.settings={};
-  $("brandName").textContent=data.settings.brandName||"Jungfru Maria Kyrkan";
-  $("brandSub").textContent=data.settings.brandSub||"Livestreamhjälp";
-  $("heroTitle").textContent=data.settings.heroTitle||"Vad behöver du hjälp med?";
-  $("heroText").textContent=data.settings.heroText||"";
+  const s=data.settings;
+  const val=(key,fallback="")=>s[key]===undefined||s[key]===null?fallback:String(s[key]);
+  const name=val("brandName","Jungfru Maria Kyrkan"),subtitle=val("brandSub","Livestreamhjälp"),logoText=val("logoSymbol","✝");
+  $("brandName").textContent=name;
+  $("brandSub").textContent=subtitle;
+  $("brandSub").classList.toggle("hidden",!subtitle.trim());
+  const logo=document.querySelector(".brand .logo");
+  if(logo){logo.textContent=logoText;logo.classList.toggle("hidden",!logoText.trim());}
+  const kicker=document.getElementById("heroKicker");
+  if(kicker){kicker.textContent=val("heroKicker","Operatörsguide");kicker.classList.toggle("hidden",!kicker.textContent.trim());}
+  $("heroTitle").textContent=val("heroTitle","Vad behöver du hjälp med?");
+  $("heroText").textContent=val("heroText","Välj det du vill göra. Guiden visar det viktigaste steg för steg.");
+  const footer=document.getElementById("siteFooter");
+  if(footer){footer.textContent=val("footerText","Livestreamhjälp");footer.classList.toggle("hidden",!footer.textContent.trim());}
+  document.title=val("tabTitle","Jungfru Maria Kyrkan").trim()||name||"Jungfru Maria Kyrkan";
 }
 function pageCard(k,p,main=false){return `<div class="${main?'card':'quickitem'}" data-page="${esc(k)}">${main?`<div class="ico">${esc(p.icon||"•")}</div><h2>${esc(p.title||"Namnlös guide")}</h2><p>${esc(p.summary||"")}</p><span class="more">Öppna guide →</span>`:`<div><strong>${esc(p.icon||"•")} ${esc(p.title||"Namnlös guide")}</strong><small>${esc(p.summary||"")}</small></div><div class="arr">›</div>`}${admin?`<button class="editfab" data-edit="${esc(k)}" type="button">✎</button>`:""}</div>`}
 function renderHome(){
@@ -49,7 +60,7 @@ function renderPage(k){
 function showHome(){currentPage=null;$("homeView").classList.remove("hidden");$("pageView").classList.add("hidden");$("adminView").classList.add("hidden");history.replaceState(null,"","#home");window.scrollTo(0,0)}
 function showPage(k){renderPage(k);$("homeView").classList.add("hidden");$("adminView").classList.add("hidden");$("pageView").classList.remove("hidden");history.replaceState(null,"","#"+encodeURIComponent(k));window.scrollTo(0,0)}
 function showAdmin(){$("homeView").classList.add("hidden");$("pageView").classList.add("hidden");$("adminView").classList.remove("hidden");updateAdminView();history.replaceState(null,"","#admin");window.scrollTo(0,0)}
-function setAdmin(v){admin=!!v;$("adminBar").classList.toggle("hidden",!admin);$("adminDashboardBtn").classList.toggle("hidden",!admin);$("logoutBtn").classList.toggle("hidden",!admin);$("loginBtn").classList.toggle("hidden",admin);renderHome();if(currentPage)renderPage(currentPage)}
+function setAdmin(v){admin=!!v;$("adminBar").classList.toggle("hidden",!admin);$("adminDashboardBtn").classList.toggle("hidden",!admin);$("editGlobalSiteBtn")?.classList.toggle("hidden",!admin);$("logoutBtn").classList.toggle("hidden",!admin);$("loginBtn").classList.toggle("hidden",admin);renderHome();if(currentPage)renderPage(currentPage)}
 
 async function saveContent(){throw new Error("Supabase har inte startat ännu. Försök igen om ett ögonblick.")}
 function updateAdminView(){
@@ -60,7 +71,15 @@ function updateAdminView(){
   $("adminUserText").textContent=user?.email||"–";
 }
 
-function openEditSite(){$("editBrandName").value=data.settings?.brandName||"";$("editBrandSub").value=data.settings?.brandSub||"";$("editHeroTitle").value=data.settings?.heroTitle||"";$("editHeroText").value=data.settings?.heroText||"";openModal("editSiteModal")}
+function openEditSite(){
+  if(!admin)return;
+  const s=data.settings||{};
+  const defs={brandName:"Jungfru Maria Kyrkan",brandSub:"Livestreamhjälp",logoSymbol:"✝",tabTitle:"Jungfru Maria Kyrkan",heroKicker:"Operatörsguide",heroTitle:"Vad behöver du hjälp med?",heroText:"Välj det du vill göra. Guiden visar det viktigaste steg för steg.",portalKicker:"Hjälpcenter",portalTitle:"Vad behöver du hjälp med?",portalText:"Välj ett område för att öppna guider och instruktioner.",navHomeLabel:"Hem",manageTabsLabel:"Hantera flikar",openLabel:"Öppna",areaKicker:"Område",areaText:"Välj en guide eller instruktion nedan.",footerText:"Livestreamhjälp"};
+  const ids={brandName:"editBrandName",brandSub:"editBrandSub",logoSymbol:"editBrandLogo",tabTitle:"editTabTitle",heroKicker:"editHeroKicker",heroTitle:"editHeroTitle",heroText:"editHeroText",portalKicker:"editPortalKicker",portalTitle:"editPortalTitle",portalText:"editPortalText",navHomeLabel:"editNavHomeLabel",manageTabsLabel:"editManageTabsLabel",openLabel:"editOpenLabel",areaKicker:"editAreaKicker",areaText:"editAreaText",footerText:"editFooterText"};
+  for(const [key,id] of Object.entries(ids)){const el=$(id);if(el)el.value=s[key]===undefined||s[key]===null?defs[key]:String(s[key]);}
+  $("editSiteModal").dataset.dirty="0";
+  openModal("editSiteModal");
+}
 function openEditPage(k){editingPageKey=k;const p=data.pages?.[k];if(!p)return;$("editPageIcon").value=p.icon||"";$("editPageKicker").value=p.kicker||"";$("editPageTitle").value=p.title||"";$("editPageSummary").value=p.summary||"";$("editPageIntro").value=p.intro||"";$("editPageNote").value=p.note||"";$("editPageNoteType").value=["info","good","warn","danger"].includes(p.noteType)?p.noteType:"info";renderStepEditor(p.steps||[]);openModal("editPageModal")}
 function renderStepEditor(st){$("stepEditor").innerHTML=(st||[]).map((s,i)=>`<div class="stepedit"><div class="stepeditbar"><strong>Steg ${i+1}</strong><button class="btn small danger" data-remove-step="${i}" type="button">Ta bort</button></div><div class="field"><label>Rubrik</label><input class="stepTitle" value="${esc(s.title||"")}"></div><div class="field"><label>Text</label><textarea class="stepText">${esc(s.text||"")}</textarea></div></div>`).join("")}
 function collectSteps(){return [...document.querySelectorAll("#stepEditor .stepedit")].map(el=>({title:el.querySelector(".stepTitle")?.value.trim()||"",text:el.querySelector(".stepText")?.value.trim()||""})).filter(s=>s.title||s.text)}
@@ -71,7 +90,7 @@ document.addEventListener("click",e=>{
   const cl=e.target.closest("[data-close]");if(cl)closeModal(cl.dataset.close);
   const rm=e.target.closest("[data-remove-step]");if(rm){const st=collectSteps();st.splice(Number(rm.dataset.removeStep),1);renderStepEditor(st)}
 });
-$("backBtn").onclick=showHome;$("adminBackBtn").onclick=showHome;$("adminDashboardBtn").onclick=()=>{if(admin)showAdmin()};$("editSiteBtn").onclick=openEditSite;$("editPageBtn").onclick=()=>currentPage&&openEditPage(currentPage);$("loginBtn").onclick=()=>openModal("loginModal");
+$("backBtn").onclick=showHome;$("adminBackBtn").onclick=showHome;$("adminDashboardBtn").onclick=()=>{if(admin)showAdmin()};$("editSiteBtn").onclick=openEditSite;$("editGlobalSiteBtn").onclick=()=>{if(admin)openEditSite()};$("editPageBtn").onclick=()=>currentPage&&openEditPage(currentPage);$("loginBtn").onclick=()=>openModal("loginModal");
 $("logoutBtn").onclick=()=>toast("Inloggningen startar fortfarande. Försök igen om ett ögonblick.");
 $("submitLoginBtn").onclick=()=>toast("Inloggningen startar fortfarande. Försök igen om ett ögonblick.");
 $("saveSiteBtn").onclick=async()=>{data.settings.brandName=$("editBrandName").value.trim()||data.settings.brandName;data.settings.brandSub=$("editBrandSub").value.trim();data.settings.heroTitle=$("editHeroTitle").value.trim();data.settings.heroText=$("editHeroText").value.trim();renderHome();closeModal("editSiteModal");try{await saveContent()}catch(e){toast(e.message)}};

@@ -29,6 +29,7 @@
   }
   function iconLabel(icon){return iconImageURL(icon)?"🖼":String(icon||"📁");}
 
+  function siteText(key,fallback){const v=data.settings?.[key];return v===undefined||v===null?fallback:String(v);}
   function ensureAreas() {
     S.ensureData();
     if (!Array.isArray(data.areas) || !data.areas.length) {
@@ -87,9 +88,9 @@
     const nav=ensureGlobalNav();
     if(!nav)return;
     nav.innerHTML=`<div class="area-global-nav-inner">
-      <button class="area-home-link ${!highlightId?"active":""}" data-area-home type="button">Hem</button>
+      <button class="area-home-link ${!highlightId?"active":""}" data-area-home type="button">${S.esc(siteText("navHomeLabel","Hem"))}</button>
       ${data.areas.map(a=>`<button class="area-nav-tab ${a.id===highlightId?"active":""}" data-area-nav="${S.esc(a.id)}" type="button"><span>${iconMarkup(a.icon)}</span>${S.esc(a.title)}</button>`).join("")}
-      ${admin?'<button class="area-manage-top" id="manageAreasTopBtn" type="button">⚙ Hantera flikar</button>':""}
+      ${admin?'<button class="area-manage-top" id="manageAreasTopBtn" type="button">⚙ ${S.esc(siteText("manageTabsLabel","Hantera flikar"))}</button>':""}
     </div>`;
   }
 
@@ -108,8 +109,9 @@
   function renderPortal() {
     const portal=ensurePortal();
     if(!portal)return;
-    portal.innerHTML=`<div class="area-portal-title"><div class="kicker">Hjälpcenter</div><h1>Vad behöver du hjälp med?</h1><p>Välj ett område för att öppna guider och instruktioner.</p></div>
-      <div class="area-portal-grid">${data.areas.map(a=>`<button class="area-portal-card" data-area-nav="${S.esc(a.id)}" type="button"><span class="area-portal-icon">${iconMarkup(a.icon)}</span><strong>${S.esc(a.title)}</strong><span>Öppna →</span></button>`).join("")}</div>`;
+    const kicker=siteText("portalKicker","Hjälpcenter"),title=siteText("portalTitle","Vad behöver du hjälp med?"),intro=siteText("portalText","Välj ett område för att öppna guider och instruktioner.");
+    portal.innerHTML=`<div class="area-portal-title">${kicker?`<div class="kicker">${S.esc(kicker)}</div>`:""}${title?`<h1>${S.esc(title)}</h1>`:""}${intro?`<p>${S.esc(intro)}</p>`:""}</div>
+      <div class="area-portal-grid">${data.areas.map(a=>`<button class="area-portal-card" data-area-nav="${S.esc(a.id)}" type="button"><span class="area-portal-icon">${iconMarkup(a.icon)}</span><strong>${S.esc(a.title)}</strong><span>${S.esc(siteText("openLabel","Öppna"))} →</span></button>`).join("")}</div>`;
   }
 
   function ensureAreaPageHead() {
@@ -168,7 +170,7 @@
     homeTexts.forEach(n=>n.classList.add("area-structure-hidden"));
     if(head){
       head.classList.remove("hidden");
-      head.innerHTML=`<div class="area-page-heading"><span class="area-page-icon">${iconMarkup(area?.icon||"📁")}</span><div><div class="kicker">Område</div><h1>${S.esc(area?.title||"")}</h1><p>Välj en guide eller instruktion nedan.</p></div></div>`;
+      head.innerHTML=`<div class="area-page-heading"><span class="area-page-icon">${iconMarkup(area?.icon||"📁")}</span><div>${siteText("areaKicker","Område")?`<div class="kicker">${S.esc(siteText("areaKicker","Område"))}</div>`:""}<h1>${S.esc(area?.title||"")}</h1>${siteText("areaText","Välj en guide eller instruktion nedan.")?`<p>${S.esc(siteText("areaText","Välj en guide eller instruktion nedan."))}</p>`:""}</div></div>`;
     }
     toolbar?.classList.toggle("area-structure-hidden",!admin);
     if(toolbar){
